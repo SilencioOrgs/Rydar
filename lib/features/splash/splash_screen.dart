@@ -1,4 +1,4 @@
-import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -15,48 +15,958 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> {
+class _SplashScreenState extends State<SplashScreen>
+    with SingleTickerProviderStateMixin {
+  final PageController _pageController = PageController();
+  late final AnimationController _motionController;
+  int _pageIndex = 0;
+
   @override
   void initState() {
     super.initState();
-    Timer(const Duration(milliseconds: 1500), () {
-      if (mounted) {
-        Navigator.of(context).pushReplacementNamed(HomeScreen.routeName);
-      }
-    });
+    _motionController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2800),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _motionController.dispose();
+    _pageController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      backgroundColor: AppColors.background,
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: SafeArea(
+        child: PageView(
+          controller: _pageController,
+          onPageChanged: (index) => setState(() => _pageIndex = index),
           children: [
-            RydarLogo(size: 108),
-            SizedBox(height: 22),
-            Text(
-              'Rydar',
-              style: TextStyle(
-                color: AppColors.orange,
-                fontSize: 42,
-                fontWeight: FontWeight.w900,
-              ),
+            _WelcomePage(
+              pageIndex: _pageIndex,
+              motion: _motionController,
+              onGetStarted: _nextPage,
+              onContinue: _enterGuestMode,
             ),
-            SizedBox(height: 8),
-            Text(
-              'GUEST RIDE TRACKING',
-              style: TextStyle(
-                color: AppColors.mutedText,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0,
-              ),
+            _TrackingPage(
+              pageIndex: _pageIndex,
+              motion: _motionController,
+              onBack: _previousPage,
+              onNext: _nextPage,
+              onSkip: _enterGuestMode,
+            ),
+            _ReadyPage(
+              pageIndex: _pageIndex,
+              motion: _motionController,
+              onBack: _previousPage,
+              onContinue: _enterGuestMode,
+              onUnavailable: _showAccountsComingSoon,
             ),
           ],
         ),
       ),
     );
   }
+
+  void _nextPage() {
+    if (_pageIndex >= 2) {
+      _enterGuestMode();
+      return;
+    }
+    _pageController.nextPage(
+      duration: const Duration(milliseconds: 460),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  void _previousPage() {
+    _pageController.previousPage(
+      duration: const Duration(milliseconds: 420),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  void _enterGuestMode() {
+    Navigator.of(context).pushReplacementNamed(HomeScreen.routeName);
+  }
+
+  void _showAccountsComingSoon() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Accounts are coming soon. Continue as Guest for now.'),
+      ),
+    );
+  }
+}
+
+class _WelcomePage extends StatelessWidget {
+  const _WelcomePage({
+    required this.pageIndex,
+    required this.motion,
+    required this.onGetStarted,
+    required this.onContinue,
+  });
+
+  final int pageIndex;
+  final Animation<double> motion;
+  final VoidCallback onGetStarted;
+  final VoidCallback onContinue;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        Positioned.fill(child: _GlowingRouteBackground(motion: motion)),
+        Positioned.fill(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.black.withValues(alpha: 0.96),
+                  Colors.black.withValues(alpha: 0.58),
+                  Colors.black,
+                ],
+              ),
+            ),
+          ),
+        ),
+        _PageReveal(
+          active: pageIndex == 0,
+          child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 28, 20, 24),
+          child: Column(
+            children: [
+              const Spacer(),
+              AnimatedBuilder(
+                animation: motion,
+                builder: (context, child) {
+                  final lift = math.sin(motion.value * math.pi * 2) * 4;
+                  return Transform.translate(
+                    offset: Offset(0, lift),
+                    child: child,
+                  );
+                },
+                child: const Icon(
+                  Icons.route_rounded,
+                  color: AppColors.orange,
+                  size: 72,
+                ),
+              ),
+              const SizedBox(height: 22),
+              const Text(
+                'RYDAR',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: AppColors.text,
+                  fontSize: 52,
+                  height: 1,
+                  fontWeight: FontWeight.w900,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'Track every ride. Share every route.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: AppColors.mutedText, fontSize: 16),
+              ),
+              const Spacer(),
+              _PrimaryOnboardingButton(
+                label: 'Get Started',
+                onPressed: onGetStarted,
+              ),
+              const SizedBox(height: 12),
+              _TextOnboardingButton(
+                label: 'Continue as Guest',
+                onPressed: onContinue,
+              ),
+              const SizedBox(height: 22),
+              _ProgressDots(activeIndex: pageIndex),
+            ],
+          ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TrackingPage extends StatelessWidget {
+  const _TrackingPage({
+    required this.pageIndex,
+    required this.onBack,
+    required this.onNext,
+    required this.onSkip,
+  });
+
+  final int pageIndex;
+  final VoidCallback onBack;
+  final VoidCallback onNext;
+  final VoidCallback onSkip;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        _OnboardingTopBar(onSkip: onSkip),
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 28, 20, 20),
+            child: Column(
+              children: [
+                const Text(
+                  'Ride Smarter',
+                  style: TextStyle(
+                    color: AppColors.orange,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Track your route in real time',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: AppColors.text,
+                    fontSize: 26,
+                    height: 1.16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  'Record distance, speed, duration, and your full ride path with a clean GPS-powered map.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: AppColors.mutedText,
+                    fontSize: 16,
+                    height: 1.45,
+                  ),
+                ),
+                const SizedBox(height: 28),
+                const _MapMockup(),
+                const SizedBox(height: 16),
+                const Row(
+                  children: [
+                    Expanded(
+                      child: _TrackingFeature(
+                        icon: Icons.route_rounded,
+                        label: 'Distance',
+                      ),
+                    ),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: _TrackingFeature(
+                        icon: Icons.speed_rounded,
+                        label: 'Speed',
+                      ),
+                    ),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: _TrackingFeature(
+                        icon: Icons.timer_rounded,
+                        label: 'Duration',
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        _OnboardingFooter(pageIndex: pageIndex, onBack: onBack, onNext: onNext),
+      ],
+    );
+  }
+}
+
+class _ReadyPage extends StatefulWidget {
+  const _ReadyPage({
+    required this.pageIndex,
+    required this.onBack,
+    required this.onContinue,
+    required this.onUnavailable,
+  });
+
+  final int pageIndex;
+  final VoidCallback onBack;
+  final VoidCallback onContinue;
+  final VoidCallback onUnavailable;
+
+  @override
+  State<_ReadyPage> createState() => _ReadyPageState();
+}
+
+class _ReadyPageState extends State<_ReadyPage> {
+  bool _obscurePassword = true;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 28, 20, 24),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          minHeight:
+              MediaQuery.sizeOf(context).height -
+              MediaQuery.paddingOf(context).vertical -
+              52,
+        ),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                IconButton(
+                  tooltip: 'Back',
+                  onPressed: widget.onBack,
+                  icon: const Icon(
+                    Icons.arrow_back_rounded,
+                    color: AppColors.mutedText,
+                  ),
+                ),
+                const Spacer(),
+                const RydarLogo(size: 42),
+              ],
+            ),
+            const SizedBox(height: 42),
+            const Text(
+              'RYDAR',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: AppColors.orange,
+                fontSize: 26,
+                height: 1,
+                fontWeight: FontWeight.w900,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Ready to ride?',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: AppColors.text,
+                fontSize: 44,
+                height: 1.08,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'Start tracking your rides, save your routes, and create shareable ride cards.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: AppColors.mutedText,
+                fontSize: 16,
+                height: 1.45,
+              ),
+            ),
+            const SizedBox(height: 28),
+            _LoginCard(
+              obscurePassword: _obscurePassword,
+              onTogglePassword: () {
+                setState(() => _obscurePassword = !_obscurePassword);
+              },
+              onUnavailable: widget.onUnavailable,
+            ),
+            const SizedBox(height: 30),
+            _TextOnboardingButton(
+              label: 'Continue as Guest',
+              onPressed: widget.onContinue,
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Guest mode lets you track rides locally without an account.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppColors.mutedText, fontSize: 14),
+            ),
+            const SizedBox(height: 28),
+            _ProgressDots(activeIndex: widget.pageIndex),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LoginCard extends StatelessWidget {
+  const _LoginCard({
+    required this.obscurePassword,
+    required this.onTogglePassword,
+    required this.onUnavailable,
+  });
+
+  final bool obscurePassword;
+  final VoidCallback onTogglePassword;
+  final VoidCallback onUnavailable;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: const Color(0xFF121212),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.orange.withValues(alpha: 0.32)),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.orange.withValues(alpha: 0.08),
+            blurRadius: 18,
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          const _AuthField(
+            label: 'Email',
+            hintText: 'rider@example.com',
+            keyboardType: TextInputType.emailAddress,
+          ),
+          const SizedBox(height: 16),
+          _AuthField(
+            label: 'Password',
+            hintText: 'Password',
+            obscureText: obscurePassword,
+            suffixIcon: IconButton(
+              tooltip: obscurePassword ? 'Show password' : 'Hide password',
+              onPressed: onTogglePassword,
+              icon: Icon(
+                obscurePassword
+                    ? Icons.visibility_rounded
+                    : Icons.visibility_off_rounded,
+                color: AppColors.mutedText,
+              ),
+            ),
+          ),
+          const SizedBox(height: 22),
+          _PrimaryOnboardingButton(
+            label: 'Log In',
+            icon: Icons.arrow_forward_rounded,
+            onPressed: onUnavailable,
+          ),
+          const SizedBox(height: 12),
+          _OutlineOnboardingButton(
+            label: 'Create Account',
+            onPressed: onUnavailable,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AuthField extends StatelessWidget {
+  const _AuthField({
+    required this.label,
+    required this.hintText,
+    this.keyboardType,
+    this.obscureText = false,
+    this.suffixIcon,
+  });
+
+  final String label;
+  final String hintText;
+  final TextInputType? keyboardType;
+  final bool obscureText;
+  final Widget? suffixIcon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label.toUpperCase(),
+          style: const TextStyle(
+            color: Color(0xFFC8C6C5),
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1.1,
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          keyboardType: keyboardType,
+          obscureText: obscureText,
+          style: const TextStyle(color: AppColors.text, fontSize: 16),
+          decoration: InputDecoration(
+            hintText: hintText,
+            hintStyle: const TextStyle(color: Color(0xFF5A5A5A)),
+            filled: true,
+            fillColor: const Color(0xFF080808),
+            suffixIcon: suffixIcon,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: Color(0xFF292A2A)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: AppColors.orange, width: 1.4),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _OnboardingTopBar extends StatelessWidget {
+  const _OnboardingTopBar({required this.onSkip});
+
+  final VoidCallback onSkip;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 64,
+      padding: const EdgeInsets.symmetric(horizontal: 18),
+      decoration: const BoxDecoration(
+        color: Colors.black,
+        border: Border(bottom: BorderSide(color: Color(0xFF242424))),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.navigation_rounded, color: Color(0xFF777777)),
+          const Spacer(),
+          const Text(
+            'RYDAR',
+            style: TextStyle(
+              color: AppColors.orange,
+              fontSize: 15,
+              fontWeight: FontWeight.w900,
+              fontStyle: FontStyle.italic,
+              letterSpacing: 1.4,
+            ),
+          ),
+          const Spacer(),
+          TextButton(
+            onPressed: onSkip,
+            child: const Text(
+              'SKIP',
+              style: TextStyle(
+                color: Color(0xFF9A9A9A),
+                fontSize: 12,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.2,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OnboardingFooter extends StatelessWidget {
+  const _OnboardingFooter({
+    required this.pageIndex,
+    required this.onBack,
+    required this.onNext,
+  });
+
+  final int pageIndex;
+  final VoidCallback onBack;
+  final VoidCallback onNext;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              TextButton(
+                onPressed: onBack,
+                child: const Text(
+                  'BACK',
+                  style: TextStyle(
+                    color: AppColors.mutedText,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              _CompactNextButton(onPressed: onNext),
+            ],
+          ),
+          const SizedBox(height: 18),
+          _ProgressDots(activeIndex: pageIndex),
+        ],
+      ),
+    );
+  }
+}
+
+class _MapMockup extends StatelessWidget {
+  const _MapMockup();
+
+  @override
+  Widget build(BuildContext context) {
+    return AspectRatio(
+      aspectRatio: 4 / 3,
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.panel,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.divider),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.orange.withValues(alpha: 0.08),
+              blurRadius: 24,
+            ),
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: const CustomPaint(painter: _MapMockupPainter()),
+      ),
+    );
+  }
+}
+
+class _TrackingFeature extends StatelessWidget {
+  const _TrackingFeature({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 96,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: AppColors.panel,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.orange.withValues(alpha: 0.28)),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: AppColors.orange, size: 26),
+          const SizedBox(height: 8),
+          FittedBox(
+            child: Text(
+              label.toUpperCase(),
+              style: const TextStyle(
+                color: AppColors.mutedText,
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.9,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PrimaryOnboardingButton extends StatelessWidget {
+  const _PrimaryOnboardingButton({
+    required this.label,
+    required this.onPressed,
+    this.icon,
+  });
+
+  final String label;
+  final VoidCallback onPressed;
+  final IconData? icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      height: 54,
+      child: FilledButton(
+        onPressed: onPressed,
+        style: FilledButton.styleFrom(
+          backgroundColor: AppColors.orange,
+          foregroundColor: Colors.black,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(999),
+          ),
+          textStyle: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.1,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(label.toUpperCase()),
+            if (icon != null) ...[
+              const SizedBox(width: 8),
+              Icon(icon, size: 20),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _OutlineOnboardingButton extends StatelessWidget {
+  const _OutlineOnboardingButton({
+    required this.label,
+    required this.onPressed,
+  });
+
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      height: 54,
+      child: OutlinedButton(
+        onPressed: onPressed,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.text,
+          side: const BorderSide(color: AppColors.orange),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          textStyle: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.1,
+          ),
+        ),
+        child: Text(label.toUpperCase()),
+      ),
+    );
+  }
+}
+
+class _TextOnboardingButton extends StatelessWidget {
+  const _TextOnboardingButton({required this.label, required this.onPressed});
+
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextButton(
+      onPressed: onPressed,
+      child: Text(
+        label.toUpperCase(),
+        style: const TextStyle(
+          color: AppColors.orange,
+          fontSize: 12,
+          fontWeight: FontWeight.w900,
+          letterSpacing: 1.2,
+        ),
+      ),
+    );
+  }
+}
+
+class _CompactNextButton extends StatelessWidget {
+  const _CompactNextButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return FilledButton(
+      onPressed: onPressed,
+      style: FilledButton.styleFrom(
+        backgroundColor: AppColors.orange,
+        foregroundColor: Colors.black,
+        padding: const EdgeInsets.symmetric(horizontal: 34, vertical: 14),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+        textStyle: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w900,
+          letterSpacing: 1.2,
+        ),
+      ),
+      child: const Text('NEXT'),
+    );
+  }
+}
+
+class _ProgressDots extends StatelessWidget {
+  const _ProgressDots({required this.activeIndex});
+
+  final int activeIndex;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List.generate(3, (index) {
+        final active = index == activeIndex;
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          width: active ? 32 : 8,
+          height: 8,
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          decoration: BoxDecoration(
+            color: active ? AppColors.orange : AppColors.panelSoft,
+            borderRadius: BorderRadius.circular(999),
+            boxShadow: active
+                ? [
+                    BoxShadow(
+                      color: AppColors.orange.withValues(alpha: 0.45),
+                      blurRadius: 10,
+                    ),
+                  ]
+                : null,
+          ),
+        );
+      }),
+    );
+  }
+}
+
+class _GlowingRouteBackground extends StatelessWidget {
+  const _GlowingRouteBackground();
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(painter: _GlowingRoutePainter());
+  }
+}
+
+class _GlowingRoutePainter extends CustomPainter {
+  const _GlowingRoutePainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = Path()
+      ..moveTo(0, size.height * 0.72)
+      ..cubicTo(
+        size.width * 0.22,
+        size.height * 0.72,
+        size.width * 0.32,
+        size.height * 0.44,
+        size.width * 0.52,
+        size.height * 0.55,
+      )
+      ..cubicTo(
+        size.width * 0.76,
+        size.height * 0.68,
+        size.width * 0.78,
+        size.height * 0.24,
+        size.width,
+        size.height * 0.12,
+      );
+
+    final glowPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = 18
+      ..color = AppColors.orange.withValues(alpha: 0.12)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18);
+    final linePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = 4
+      ..color = AppColors.orange.withValues(alpha: 0.72);
+
+    canvas.drawPath(path, glowPaint);
+    canvas.drawPath(path, linePaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _MapMockupPainter extends CustomPainter {
+  const _MapMockupPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()..color = const Color(0xFF0B0C0C),
+    );
+
+    final streetPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2
+      ..color = const Color(0xFF333535);
+    for (var i = 0; i < 8; i++) {
+      final y = size.height * (0.14 + i * 0.11);
+      canvas.drawLine(Offset(0, y), Offset(size.width, y - 34), streetPaint);
+    }
+    for (var i = 0; i < 7; i++) {
+      final x = size.width * (0.08 + i * 0.15);
+      canvas.drawLine(Offset(x, 0), Offset(x + 42, size.height), streetPaint);
+    }
+
+    final route = Path()
+      ..moveTo(size.width * 0.12, size.height * 0.82)
+      ..cubicTo(
+        size.width * 0.24,
+        size.height * 0.66,
+        size.width * 0.38,
+        size.height * 0.9,
+        size.width * 0.5,
+        size.height * 0.5,
+      )
+      ..cubicTo(
+        size.width * 0.62,
+        size.height * 0.2,
+        size.width * 0.74,
+        size.height * 0.36,
+        size.width * 0.88,
+        size.height * 0.18,
+      );
+    final routeGlow = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..strokeWidth = 14
+      ..color = AppColors.orange.withValues(alpha: 0.16)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12);
+    final routePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..strokeWidth = 5
+      ..color = AppColors.orange;
+    canvas.drawPath(route, routeGlow);
+    canvas.drawPath(route, routePaint);
+
+    final current = Offset(size.width * 0.88, size.height * 0.18);
+    canvas.drawCircle(
+      current,
+      16,
+      Paint()..color = AppColors.orange.withValues(alpha: 0.18),
+    );
+    canvas.drawCircle(current, 7, Paint()..color = AppColors.orange);
+    canvas.drawCircle(
+      current,
+      17,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..color = AppColors.orange.withValues(alpha: 0.5),
+    );
+
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()..color = Colors.black.withValues(alpha: 0.22),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
