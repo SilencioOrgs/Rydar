@@ -139,57 +139,57 @@ class _WelcomePage extends StatelessWidget {
         _PageReveal(
           active: pageIndex == 0,
           child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 28, 20, 24),
-          child: Column(
-            children: [
-              const Spacer(),
-              AnimatedBuilder(
-                animation: motion,
-                builder: (context, child) {
-                  final lift = math.sin(motion.value * math.pi * 2) * 4;
-                  return Transform.translate(
-                    offset: Offset(0, lift),
-                    child: child,
-                  );
-                },
-                child: const Icon(
-                  Icons.route_rounded,
-                  color: AppColors.orange,
-                  size: 72,
+            padding: const EdgeInsets.fromLTRB(20, 28, 20, 24),
+            child: Column(
+              children: [
+                const Spacer(),
+                AnimatedBuilder(
+                  animation: motion,
+                  builder: (context, child) {
+                    final lift = math.sin(motion.value * math.pi * 2) * 4;
+                    return Transform.translate(
+                      offset: Offset(0, lift),
+                      child: child,
+                    );
+                  },
+                  child: const Icon(
+                    Icons.route_rounded,
+                    color: AppColors.orange,
+                    size: 72,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 22),
-              const Text(
-                'RYDAR',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: AppColors.text,
-                  fontSize: 52,
-                  height: 1,
-                  fontWeight: FontWeight.w900,
-                  fontStyle: FontStyle.italic,
+                const SizedBox(height: 22),
+                const Text(
+                  'RYDAR',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: AppColors.text,
+                    fontSize: 52,
+                    height: 1,
+                    fontWeight: FontWeight.w900,
+                    fontStyle: FontStyle.italic,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                'Track every ride. Share every route.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: AppColors.mutedText, fontSize: 16),
-              ),
-              const Spacer(),
-              _PrimaryOnboardingButton(
-                label: 'Get Started',
-                onPressed: onGetStarted,
-              ),
-              const SizedBox(height: 12),
-              _TextOnboardingButton(
-                label: 'Continue as Guest',
-                onPressed: onContinue,
-              ),
-              const SizedBox(height: 22),
-              _ProgressDots(activeIndex: pageIndex),
-            ],
-          ),
+                const SizedBox(height: 10),
+                const Text(
+                  'Track every ride. Share every route.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppColors.mutedText, fontSize: 16),
+                ),
+                const Spacer(),
+                _PrimaryOnboardingButton(
+                  label: 'Get Started',
+                  onPressed: onGetStarted,
+                ),
+                const SizedBox(height: 12),
+                _TextOnboardingButton(
+                  label: 'Continue as Guest',
+                  onPressed: onContinue,
+                ),
+                const SizedBox(height: 22),
+                _ProgressDots(activeIndex: pageIndex),
+              ],
+            ),
           ),
         ),
       ],
@@ -200,12 +200,14 @@ class _WelcomePage extends StatelessWidget {
 class _TrackingPage extends StatelessWidget {
   const _TrackingPage({
     required this.pageIndex,
+    required this.motion,
     required this.onBack,
     required this.onNext,
     required this.onSkip,
   });
 
   final int pageIndex;
+  final Animation<double> motion;
   final VoidCallback onBack;
   final VoidCallback onNext;
   final VoidCallback onSkip;
@@ -216,68 +218,71 @@ class _TrackingPage extends StatelessWidget {
       children: [
         _OnboardingTopBar(onSkip: onSkip),
         Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 28, 20, 20),
-            child: Column(
-              children: [
-                const Text(
-                  'Ride Smarter',
-                  style: TextStyle(
-                    color: AppColors.orange,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.2,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Track your route in real time',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: AppColors.text,
-                    fontSize: 26,
-                    height: 1.16,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                const Text(
-                  'Record distance, speed, duration, and your full ride path with a clean GPS-powered map.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: AppColors.mutedText,
-                    fontSize: 16,
-                    height: 1.45,
-                  ),
-                ),
-                const SizedBox(height: 28),
-                const _MapMockup(),
-                const SizedBox(height: 16),
-                const Row(
-                  children: [
-                    Expanded(
-                      child: _TrackingFeature(
-                        icon: Icons.route_rounded,
-                        label: 'Distance',
-                      ),
+          child: _PageReveal(
+            active: pageIndex == 1,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 28, 20, 20),
+              child: Column(
+                children: [
+                  const Text(
+                    'Ride Smarter',
+                    style: TextStyle(
+                      color: AppColors.orange,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.2,
                     ),
-                    SizedBox(width: 12),
-                    Expanded(
-                      child: _TrackingFeature(
-                        icon: Icons.speed_rounded,
-                        label: 'Speed',
-                      ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Track your route in real time',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: AppColors.text,
+                      fontSize: 26,
+                      height: 1.16,
+                      fontWeight: FontWeight.w800,
                     ),
-                    SizedBox(width: 12),
-                    Expanded(
-                      child: _TrackingFeature(
-                        icon: Icons.timer_rounded,
-                        label: 'Duration',
-                      ),
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Record distance, speed, duration, and your full ride path with a clean GPS-powered map.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: AppColors.mutedText,
+                      fontSize: 16,
+                      height: 1.45,
                     ),
-                  ],
-                ),
-              ],
+                  ),
+                  const SizedBox(height: 28),
+                  _MapMockup(motion: motion),
+                  const SizedBox(height: 16),
+                  const Row(
+                    children: [
+                      Expanded(
+                        child: _TrackingFeature(
+                          icon: Icons.route_rounded,
+                          label: 'Distance',
+                        ),
+                      ),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: _TrackingFeature(
+                          icon: Icons.speed_rounded,
+                          label: 'Speed',
+                        ),
+                      ),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: _TrackingFeature(
+                          icon: Icons.timer_rounded,
+                          label: 'Duration',
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -290,12 +295,14 @@ class _TrackingPage extends StatelessWidget {
 class _ReadyPage extends StatefulWidget {
   const _ReadyPage({
     required this.pageIndex,
+    required this.motion,
     required this.onBack,
     required this.onContinue,
     required this.onUnavailable,
   });
 
   final int pageIndex;
+  final Animation<double> motion;
   final VoidCallback onBack;
   final VoidCallback onContinue;
   final VoidCallback onUnavailable;
@@ -309,86 +316,98 @@ class _ReadyPageState extends State<_ReadyPage> {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 28, 20, 24),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          minHeight:
-              MediaQuery.sizeOf(context).height -
-              MediaQuery.paddingOf(context).vertical -
-              52,
-        ),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                IconButton(
-                  tooltip: 'Back',
-                  onPressed: widget.onBack,
-                  icon: const Icon(
-                    Icons.arrow_back_rounded,
-                    color: AppColors.mutedText,
+    return _PageReveal(
+      active: widget.pageIndex == 2,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 28, 20, 24),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            minHeight:
+                MediaQuery.sizeOf(context).height -
+                MediaQuery.paddingOf(context).vertical -
+                52,
+          ),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  IconButton(
+                    tooltip: 'Back',
+                    onPressed: widget.onBack,
+                    icon: const Icon(
+                      Icons.arrow_back_rounded,
+                      color: AppColors.mutedText,
+                    ),
                   ),
+                  const Spacer(),
+                  AnimatedBuilder(
+                    animation: widget.motion,
+                    builder: (context, child) {
+                      final scale =
+                          1 +
+                          math.sin(widget.motion.value * math.pi * 2) * 0.02;
+                      return Transform.scale(scale: scale, child: child);
+                    },
+                    child: const RydarLogo(size: 42),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 42),
+              const Text(
+                'RYDAR',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: AppColors.orange,
+                  fontSize: 26,
+                  height: 1,
+                  fontWeight: FontWeight.w900,
+                  fontStyle: FontStyle.italic,
                 ),
-                const Spacer(),
-                const RydarLogo(size: 42),
-              ],
-            ),
-            const SizedBox(height: 42),
-            const Text(
-              'RYDAR',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: AppColors.orange,
-                fontSize: 26,
-                height: 1,
-                fontWeight: FontWeight.w900,
-                fontStyle: FontStyle.italic,
               ),
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'Ready to ride?',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: AppColors.text,
-                fontSize: 44,
-                height: 1.08,
-                fontWeight: FontWeight.w900,
+              const SizedBox(height: 12),
+              const Text(
+                'Ready to ride?',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: AppColors.text,
+                  fontSize: 44,
+                  height: 1.08,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
-            ),
-            const SizedBox(height: 10),
-            const Text(
-              'Start tracking your rides, save your routes, and create shareable ride cards.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: AppColors.mutedText,
-                fontSize: 16,
-                height: 1.45,
+              const SizedBox(height: 10),
+              const Text(
+                'Start tracking your rides, save your routes, and create shareable ride cards.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: AppColors.mutedText,
+                  fontSize: 16,
+                  height: 1.45,
+                ),
               ),
-            ),
-            const SizedBox(height: 28),
-            _LoginCard(
-              obscurePassword: _obscurePassword,
-              onTogglePassword: () {
-                setState(() => _obscurePassword = !_obscurePassword);
-              },
-              onUnavailable: widget.onUnavailable,
-            ),
-            const SizedBox(height: 30),
-            _TextOnboardingButton(
-              label: 'Continue as Guest',
-              onPressed: widget.onContinue,
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Guest mode lets you track rides locally without an account.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: AppColors.mutedText, fontSize: 14),
-            ),
-            const SizedBox(height: 28),
-            _ProgressDots(activeIndex: widget.pageIndex),
-          ],
+              const SizedBox(height: 28),
+              _LoginCard(
+                obscurePassword: _obscurePassword,
+                onTogglePassword: () {
+                  setState(() => _obscurePassword = !_obscurePassword);
+                },
+                onUnavailable: widget.onUnavailable,
+              ),
+              const SizedBox(height: 30),
+              _TextOnboardingButton(
+                label: 'Continue as Guest',
+                onPressed: widget.onContinue,
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Guest mode lets you track rides locally without an account.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: AppColors.mutedText, fontSize: 14),
+              ),
+              const SizedBox(height: 28),
+              _ProgressDots(activeIndex: widget.pageIndex),
+            ],
+          ),
         ),
       ),
     );
@@ -611,8 +630,37 @@ class _OnboardingFooter extends StatelessWidget {
   }
 }
 
+class _PageReveal extends StatelessWidget {
+  const _PageReveal({required this.active, required this.child});
+
+  final bool active;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSlide(
+      offset: active ? Offset.zero : const Offset(0, 0.035),
+      duration: const Duration(milliseconds: 520),
+      curve: Curves.easeOutCubic,
+      child: AnimatedOpacity(
+        opacity: active ? 1 : 0.72,
+        duration: const Duration(milliseconds: 420),
+        curve: Curves.easeOut,
+        child: AnimatedScale(
+          scale: active ? 1 : 0.985,
+          duration: const Duration(milliseconds: 520),
+          curve: Curves.easeOutCubic,
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
 class _MapMockup extends StatelessWidget {
-  const _MapMockup();
+  const _MapMockup({required this.motion});
+
+  final Animation<double> motion;
 
   @override
   Widget build(BuildContext context) {
@@ -631,7 +679,14 @@ class _MapMockup extends StatelessWidget {
           ],
         ),
         clipBehavior: Clip.antiAlias,
-        child: const CustomPaint(painter: _MapMockupPainter()),
+        child: AnimatedBuilder(
+          animation: motion,
+          builder: (context, _) {
+            return CustomPaint(
+              painter: _MapMockupPainter(progress: motion.value),
+            );
+          },
+        ),
       ),
     );
   }
@@ -836,16 +891,27 @@ class _ProgressDots extends StatelessWidget {
 }
 
 class _GlowingRouteBackground extends StatelessWidget {
-  const _GlowingRouteBackground();
+  const _GlowingRouteBackground({required this.motion});
+
+  final Animation<double> motion;
 
   @override
   Widget build(BuildContext context) {
-    return CustomPaint(painter: _GlowingRoutePainter());
+    return AnimatedBuilder(
+      animation: motion,
+      builder: (context, _) {
+        return CustomPaint(
+          painter: _GlowingRoutePainter(progress: motion.value),
+        );
+      },
+    );
   }
 }
 
 class _GlowingRoutePainter extends CustomPainter {
-  const _GlowingRoutePainter();
+  const _GlowingRoutePainter({required this.progress});
+
+  final double progress;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -882,14 +948,36 @@ class _GlowingRoutePainter extends CustomPainter {
 
     canvas.drawPath(path, glowPaint);
     canvas.drawPath(path, linePaint);
+
+    final metric = path.computeMetrics().first;
+    final markerOffset = metric
+        .getTangentForOffset(metric.length * progress)
+        ?.position;
+    if (markerOffset != null) {
+      final pulse = 10 + (math.sin(progress * math.pi * 2) + 1) * 7;
+      canvas.drawCircle(
+        markerOffset,
+        pulse,
+        Paint()..color = AppColors.orange.withValues(alpha: 0.10),
+      );
+      canvas.drawCircle(
+        markerOffset,
+        5,
+        Paint()..color = AppColors.orange.withValues(alpha: 0.9),
+      );
+    }
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _GlowingRoutePainter oldDelegate) {
+    return oldDelegate.progress != progress;
+  }
 }
 
 class _MapMockupPainter extends CustomPainter {
-  const _MapMockupPainter();
+  const _MapMockupPainter({required this.progress});
+
+  final double progress;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -943,13 +1031,19 @@ class _MapMockupPainter extends CustomPainter {
       ..strokeWidth = 5
       ..color = AppColors.orange;
     canvas.drawPath(route, routeGlow);
-    canvas.drawPath(route, routePaint);
+    final metric = route.computeMetrics().first;
+    final routeProgress = (progress * 1.35).clamp(0.0, 1.0);
+    canvas.drawPath(
+      metric.extractPath(0, metric.length * routeProgress),
+      routePaint,
+    );
 
     final current = Offset(size.width * 0.88, size.height * 0.18);
+    final pulse = 12 + (math.sin(progress * math.pi * 2) + 1) * 7;
     canvas.drawCircle(
       current,
-      16,
-      Paint()..color = AppColors.orange.withValues(alpha: 0.18),
+      pulse,
+      Paint()..color = AppColors.orange.withValues(alpha: 0.12),
     );
     canvas.drawCircle(current, 7, Paint()..color = AppColors.orange);
     canvas.drawCircle(
@@ -968,5 +1062,7 @@ class _MapMockupPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _MapMockupPainter oldDelegate) {
+    return oldDelegate.progress != progress;
+  }
 }
