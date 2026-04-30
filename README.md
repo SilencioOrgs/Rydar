@@ -1,35 +1,3 @@
 # Rydar
 
 Guest-only ride tracking MVP built with Flutter. Rydar tracks rides with GPS, calculates distance locally, displays routes on Mapbox when a token is configured, saves ride history on-device with Hive, and generates black/orange branded ride cards.
-
-## Environment
-
-Copy the example environment file and add your own Mapbox public token:
-
-```bash
-cp .env.example .env
-```
-
-```env
-MAPBOX_ACCESS_TOKEN=PASTE_MAPBOX_TOKEN_HERE
-```
-
-The real `.env` file is ignored by git. Keep secrets out of source code, commits, screenshots, and issues.
-
-The app runs without a token and shows a friendly placeholder map. Once a token is added, Mapbox maps, route planning, and route lines are enabled.
-
-## Permissions
-
-Android permissions are declared in `android/app/src/main/AndroidManifest.xml` for location, camera, and image access.
-
-iOS usage descriptions are declared in `ios/Runner/Info.plist` for location, camera, and photo library access.
-
-## Verification
-
-Run:
-
-```bash
-flutter pub get
-flutter analyze
-flutter build apk --debug
-```
