@@ -1,0 +1,199 @@
+import 'dart:io';
+
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:share_plus/share_plus.dart';
+
+import '../../core/constants/app_colors.dart';
+import '../../core/utils/distance_utils.dart';
+import '../../core/utils/duration_utils.dart';
+import '../../core/utils/speed_utils.dart';
+import '../../data/local/local_ride_storage.dart';
+import '../../data/models/ride_model.dart';
+import '../../shared/widgets/map_route_view.dart';
+import '../../shared/widgets/rydar_button.dart';
+import '../../shared/widgets/stat_card.dart';
+import '../ride_card/ride_card_screen.dart';
+
+class RideDetailScreen extends StatefulWidget {
+  const RideDetailScreen({super.key, required this.rideId});
+
+  final String rideId;
+
+  @override
+  State<RideDetailScreen> createState() => _RideDetailScreenState();
+}
+
+class _RideDetailScreenState extends State<RideDetailScreen> {
+  RideModel? _ride;
+
+  @override
+  void initState() {
+    super.initState();
+    _ride = LocalRideStorage.instance.getRide(widget.rideId);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ride = _ride;
+    if (ride == null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Ride Detail')),
+        body: const Center(
+          child: Text(
+            'Ride not found.',
+            style: TextStyle(color: AppColors.mutedText),
+          ),
+        ),
+      );
+    }
+
+    final cardPath = ride.rideCardImagePath;
+    final photoPath = ride.photoPath;
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Ride Detail')),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(18),
+          children: [
+            Text(
+              DateFormat('EEEE, MMM d, yyyy  h:mm a').format(ride.dateTime),
+              style: const TextStyle(
+                color: AppColors.orange,
+                fontWeight: FontWeight.w900,
+                fontSize: 15,
+              ),
+            ),
+            const SizedBox(height: 12),
+            MapRouteView(points: ride.routePoints, height: 240),
+            const SizedBox(height: 16),
+            GridView.count(
+              crossAxisCount: 2,
+              childAspectRatio: 1.35,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              children: [
+                StatCard(
+                  label: 'Distance',
+                  value: DistanceUtils.formatMeters(ride.distanceMeters),
+                ),
+                StatCard(
+                  label: 'Duration',
+                  value: DurationUtils.formatSeconds(ride.durationSeconds),
+                ),
+                StatCard(
+                  label: 'Avg speed',
+                  value:
+                      '${SpeedUtils.formatKmh(ride.averageSpeedMetersPerSecond)} km/h',
+                ),
+                StatCard(
+                  label: 'Max speed',
+                  value:
+                      '${SpeedUtils.formatKmh(ride.maxSpeedMetersPerSecond)} km/h',
+                ),
+              ],
+            ),
+            if (cardPath != null && File(cardPath).existsSync()) ...[
+              const SizedBox(height: 18),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(22),
+                child: Image.file(File(cardPath), fit: BoxFit.cover),
+              ),
+            ] else if (photoPath != null && File(photoPath).existsSync()) ...[
+              const SizedBox(height: 18),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(22),
+                child: Image.file(File(photoPath), fit: BoxFit.cover),
+              ),
+            ],
+            const SizedBox(height: 22),
+            RydarButton(
+              label: 'Share Ride Card',
+              icon: Icons.ios_share_rounded,
+              onPressed: _shareRideCard,
+            ),
+            const SizedBox(height: 12),
+            RydarButton(
+              label: 'Delete Ride',
+              icon: Icons.delete_rounded,
+              secondary: true,
+              onPressed: _deleteRide,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _shareRideCard() async {
+    var ride = _ride;
+    if (ride == null) {
+      return;
+    }
+
+    var path = ride.rideCardImagePath;
+    if (path == null || !File(path).existsSync()) {
+      final rideForCard = ride;
+      final updatedRide = await Navigator.of(context).push<RideModel>(
+        MaterialPageRoute(builder: (_) => RideCardScreen(ride: rideForCard)),
+      );
+      if (updatedRide == null) {
+        return;
+      }
+      setState(() => _ride = updatedRide);
+      ride = updatedRide;
+      path = ride.rideCardImagePath;
+    }
+
+    if (path == null || !File(path).existsSync()) {
+      return;
+    }
+
+    await SharePlus.instance.share(
+      ShareParams(text: 'Rydar ride card', files: [XFile(path)]),
+    );
+  }
+
+  Future<void> _deleteRide() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.panel,
+        title: const Text(
+          'Delete ride?',
+          style: TextStyle(color: AppColors.text),
+        ),
+        content: const Text(
+          'This removes the saved local ride from this device.',
+          style: TextStyle(color: AppColors.mutedText),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: AppColors.mutedText),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text(
+              'Delete',
+              style: TextStyle(color: AppColors.orange),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await LocalRideStorage.instance.deleteRide(widget.rideId);
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+    }
+  }
+}
