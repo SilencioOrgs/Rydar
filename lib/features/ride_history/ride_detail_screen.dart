@@ -38,11 +38,12 @@ class _RideDetailScreenState extends State<RideDetailScreen> {
     final ride = _ride;
     if (ride == null) {
       return Scaffold(
+        backgroundColor: AppColors.background,
         appBar: AppBar(title: const Text('Ride Detail')),
-        body: const Center(
+        body: Center(
           child: Text(
             'Ride not found.',
-            style: TextStyle(color: AppColors.mutedText),
+            style: TextStyle(color: AppColors.text.withValues(alpha: 0.5)),
           ),
         ),
       );
@@ -52,27 +53,37 @@ class _RideDetailScreenState extends State<RideDetailScreen> {
     final photoPath = ride.photoPath;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Ride Detail')),
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: const Text('Ride Detail'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
+      ),
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.all(18),
+          padding: const EdgeInsets.all(16),
           children: [
             Text(
               DateFormat('EEEE, MMM d, yyyy  h:mm a').format(ride.dateTime),
-              style: const TextStyle(
-                color: AppColors.orange,
-                fontWeight: FontWeight.w900,
-                fontSize: 15,
+              style: TextStyle(
+                color: AppColors.orange.withValues(alpha: 0.8),
+                fontWeight: FontWeight.w800,
+                fontSize: 14,
               ),
             ),
             const SizedBox(height: 12),
-            MapRouteView(points: ride.routePoints, height: 240),
-            const SizedBox(height: 16),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: MapRouteView(points: ride.routePoints, height: 220),
+            ),
+            const SizedBox(height: 14),
             GridView.count(
               crossAxisCount: 2,
-              childAspectRatio: 1.35,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
+              childAspectRatio: 1.4,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               children: [
@@ -97,25 +108,25 @@ class _RideDetailScreenState extends State<RideDetailScreen> {
               ],
             ),
             if (cardPath != null && File(cardPath).existsSync()) ...[
-              const SizedBox(height: 18),
+              const SizedBox(height: 16),
               ClipRRect(
-                borderRadius: BorderRadius.circular(22),
+                borderRadius: BorderRadius.circular(16),
                 child: Image.file(File(cardPath), fit: BoxFit.cover),
               ),
             ] else if (photoPath != null && File(photoPath).existsSync()) ...[
-              const SizedBox(height: 18),
+              const SizedBox(height: 16),
               ClipRRect(
-                borderRadius: BorderRadius.circular(22),
+                borderRadius: BorderRadius.circular(16),
                 child: Image.file(File(photoPath), fit: BoxFit.cover),
               ),
             ],
-            const SizedBox(height: 22),
+            const SizedBox(height: 20),
             RydarButton(
               label: 'Share Ride Card',
               icon: Icons.ios_share_rounded,
               onPressed: _shareRideCard,
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             RydarButton(
               label: 'Delete Ride',
               icon: Icons.delete_rounded,
@@ -161,7 +172,6 @@ class _RideDetailScreenState extends State<RideDetailScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: AppColors.panel,
         title: const Text(
           'Delete ride?',
           style: TextStyle(color: AppColors.text),

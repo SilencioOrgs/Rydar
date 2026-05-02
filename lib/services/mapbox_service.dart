@@ -30,6 +30,22 @@ class PlannedRoute {
   final int durationSeconds;
 }
 
+class MapboxPlace {
+  const MapboxPlace({
+    required this.id,
+    required this.name,
+    required this.placeName,
+    required this.latitude,
+    required this.longitude,
+  });
+
+  final String id;
+  final String name;
+  final String placeName;
+  final double latitude;
+  final double longitude;
+}
+
 class MapboxService {
   const MapboxService._();
 
@@ -97,6 +113,55 @@ class MapboxService {
         );
       }).toList(),
     );
+  }
+
+  static Future<List<MapboxPlace>> searchPlaces({
+    required String query,
+    RoutePointModel? proximity,
+  }) async {
+    if (!AppConfig.hasMapboxToken) {
+      throw const MapboxDirectionsException(
+        'Add your Mapbox access token to search places.',
+      );
+    }
+
+    final trimmedQuery = query.trim();
+    if (trimmedQuery.isEmpty) {
+      return const [];
+    }
+
+    final uri = Uri.https(
+      'api.mapbox.com',
+      '/geocoding/v5/mapbox.places/$trimmedQuery.json',
+      {
+        'access_token': AppConfig.mapboxAccessToken,
+        'autocomplete': 'true',
+        'limit': '6',
+        if (proximity != null)
+          'proximity': '${proximity.longitude},${proximity.latitude}',
+      },
+    );
+
+    final response = await http.get(uri);
+    if (response.statusCode != 200) {
+      throw const MapboxDirectionsException(
+        'Could not search places right now.',
+      );
+    }
+
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    final features = body['features'] as List<dynamic>? ?? const [];
+    return features.map((feature) {
+      final data = feature as Map<String, dynamic>;
+      final center = data['center'] as List<dynamic>? ?? const [0, 0];
+      return MapboxPlace(
+        id: (data['id'] as String?) ?? data['place_name'] as String? ?? '',
+        name: (data['text'] as String?) ?? 'Place',
+        placeName: (data['place_name'] as String?) ?? 'Selected place',
+        longitude: (center[0] as num).toDouble(),
+        latitude: (center[1] as num).toDouble(),
+      );
+    }).toList();
   }
 }
 

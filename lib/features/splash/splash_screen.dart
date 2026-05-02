@@ -392,6 +392,7 @@ class _ReadyPageState extends State<_ReadyPage> {
                   setState(() => _obscurePassword = !_obscurePassword);
                 },
                 onUnavailable: widget.onUnavailable,
+                onGoogleContinue: widget.onContinue,
               ),
               const SizedBox(height: 30),
               _TextOnboardingButton(
@@ -419,11 +420,13 @@ class _LoginCard extends StatelessWidget {
     required this.obscurePassword,
     required this.onTogglePassword,
     required this.onUnavailable,
+    required this.onGoogleContinue,
   });
 
   final bool obscurePassword;
   final VoidCallback onTogglePassword;
   final VoidCallback onUnavailable;
+  final VoidCallback onGoogleContinue;
 
   @override
   Widget build(BuildContext context) {
@@ -470,6 +473,8 @@ class _LoginCard extends StatelessWidget {
             icon: Icons.arrow_forward_rounded,
             onPressed: onUnavailable,
           ),
+          const SizedBox(height: 12),
+          _GoogleOnboardingButton(onPressed: onGoogleContinue),
           const SizedBox(height: 12),
           _OutlineOnboardingButton(
             label: 'Create Account',
@@ -803,6 +808,60 @@ class _OutlineOnboardingButton extends StatelessWidget {
           ),
         ),
         child: Text(label.toUpperCase()),
+      ),
+    );
+  }
+}
+
+class _GoogleOnboardingButton extends StatelessWidget {
+  const _GoogleOnboardingButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      height: 54,
+      child: OutlinedButton(
+        onPressed: onPressed,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.text,
+          side: BorderSide(color: AppColors.glassBorder(0.18)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          textStyle: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 0.8,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 22,
+              height: 22,
+              alignment: Alignment.center,
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+              ),
+              child: const Text(
+                'G',
+                style: TextStyle(
+                  color: Color(0xFF1A73E8),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            const Flexible(child: Text('CONTINUE WITH GOOGLE')),
+          ],
+        ),
       ),
     );
   }

@@ -36,7 +36,14 @@ class _RideHistoryScreenState extends State<RideHistoryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Ride History')),
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: const Text('Ride History'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
+      ),
       body: SafeArea(
         child: _rides.isEmpty
             ? _EmptyHistory(onStartRide: _startRide)
@@ -46,9 +53,8 @@ class _RideHistoryScreenState extends State<RideHistoryScreen> {
   }
 
   Future<void> _startRide() async {
-    await Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => const RideTrackingScreen()));
+    await Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => const RideTrackingScreen()));
     _load();
   }
 }
@@ -62,9 +68,9 @@ class _RideList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView.separated(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(16),
       itemCount: rides.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 12),
+      separatorBuilder: (context, index) => const SizedBox(height: 10),
       itemBuilder: (context, index) {
         final ride = rides[index];
         return Dismissible(
@@ -74,9 +80,9 @@ class _RideList extends StatelessWidget {
             padding: const EdgeInsets.only(right: 22),
             decoration: BoxDecoration(
               color: AppColors.orange,
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(16),
             ),
-            child: const Icon(Icons.delete_rounded, color: Colors.black),
+            child: const Icon(Icons.delete_rounded, color: Colors.white),
           ),
           direction: DismissDirection.endToStart,
           confirmDismiss: (direction) => _confirmDelete(context, ride),
@@ -84,46 +90,76 @@ class _RideList extends StatelessWidget {
             await LocalRideStorage.instance.deleteRide(ride.id);
             onChanged();
           },
-          child: ListTile(
-            onTap: () async {
-              await Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => RideDetailScreen(rideId: ride.id),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: () async {
+                await Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => RideDetailScreen(rideId: ride.id),
+                  ),
+                );
+                onChanged();
+              },
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.glassWhite(0.04),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.glassBorder(0.08)),
                 ),
-              );
-              onChanged();
-            },
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(18),
-              side: const BorderSide(color: AppColors.divider),
-            ),
-            tileColor: AppColors.panel,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 18,
-              vertical: 12,
-            ),
-            title: Text(
-              DateFormat('MMM d, yyyy  h:mm a').format(ride.dateTime),
-              style: const TextStyle(
-                color: AppColors.text,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            subtitle: Padding(
-              padding: const EdgeInsets.only(top: 10),
-              child: Text(
-                '${DistanceUtils.formatMeters(ride.distanceMeters)}  |  '
-                '${DurationUtils.formatSeconds(ride.durationSeconds)}  |  '
-                '${SpeedUtils.formatKmh(ride.averageSpeedMetersPerSecond)} km/h avg',
-                style: const TextStyle(
-                  color: AppColors.mutedText,
-                  fontWeight: FontWeight.w700,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: AppColors.orange.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(
+                            Icons.directions_bike_rounded,
+                            color: AppColors.orange,
+                            size: 18,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            DateFormat('MMM d, yyyy  h:mm a')
+                                .format(ride.dateTime),
+                            style: const TextStyle(
+                              color: AppColors.text,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                        Icon(
+                          Icons.chevron_right_rounded,
+                          color: AppColors.text.withValues(alpha: 0.3),
+                          size: 22,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      '${DistanceUtils.formatMeters(ride.distanceMeters)}  ·  '
+                      '${DurationUtils.formatSeconds(ride.durationSeconds)}  ·  '
+                      '${SpeedUtils.formatKmh(ride.averageSpeedMetersPerSecond)} km/h',
+                      style: TextStyle(
+                        color: AppColors.text.withValues(alpha: 0.45),
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ),
-            trailing: const Icon(
-              Icons.chevron_right_rounded,
-              color: AppColors.orange,
             ),
           ),
         );
@@ -135,7 +171,6 @@ class _RideList extends StatelessWidget {
     return showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: AppColors.panel,
         title: const Text(
           'Delete ride?',
           style: TextStyle(color: AppColors.text),
@@ -173,40 +208,53 @@ class _EmptyHistory extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView(
-      padding: const EdgeInsets.all(22),
+      padding: const EdgeInsets.all(20),
       children: [
         Container(
-          padding: const EdgeInsets.all(26),
+          padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
-            color: AppColors.panel,
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: AppColors.divider),
+            color: AppColors.glassWhite(0.04),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppColors.glassBorder(0.08)),
           ),
-          child: const Column(
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.route_rounded, color: AppColors.orange, size: 44),
-              SizedBox(height: 18),
-              Text(
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: AppColors.orange.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(
+                  Icons.route_rounded,
+                  color: AppColors.orange,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
                 'No rides yet',
                 style: TextStyle(
                   color: AppColors.text,
-                  fontSize: 26,
+                  fontSize: 24,
                   fontWeight: FontWeight.w900,
                 ),
               ),
-              SizedBox(height: 8),
+              const SizedBox(height: 6),
               Text(
                 'Your guest rides will appear here after they are saved locally.',
                 style: TextStyle(
-                  color: AppColors.mutedText,
-                  fontWeight: FontWeight.w700,
+                  color: AppColors.text.withValues(alpha: 0.5),
+                  fontWeight: FontWeight.w500,
+                  fontSize: 14,
                 ),
               ),
             ],
           ),
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 16),
         RydarButton(
           label: 'Start Ride',
           icon: Icons.play_arrow_rounded,

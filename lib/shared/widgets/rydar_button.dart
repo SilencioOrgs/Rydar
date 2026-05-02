@@ -18,29 +18,48 @@ class RydarButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final foreground = secondary ? AppColors.orange : Colors.black;
-    final background = secondary ? AppColors.background : AppColors.orange;
-
     return SizedBox(
       width: double.infinity,
-      height: 54,
-      child: OutlinedButton.icon(
-        onPressed: onPressed,
-        icon: icon == null ? const SizedBox.shrink() : Icon(icon, size: 20),
-        label: Text(label),
-        style: OutlinedButton.styleFrom(
-          backgroundColor: background,
-          foregroundColor: foreground,
-          disabledForegroundColor: AppColors.mutedText,
-          side: BorderSide(
-            color: secondary ? AppColors.orange : AppColors.orange,
-          ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-          ),
-          textStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
-        ),
-      ),
+      height: 52,
+      child: secondary
+          ? OutlinedButton.icon(
+              onPressed: onPressed,
+              icon: icon == null
+                  ? const SizedBox.shrink()
+                  : Icon(icon, size: 18),
+              label: Text(label),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.orange,
+                side: BorderSide(color: AppColors.glassBorder(0.18)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                textStyle: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                ),
+              ),
+            )
+          : FilledButton.icon(
+              onPressed: onPressed,
+              icon: icon == null
+                  ? const SizedBox.shrink()
+                  : Icon(icon, size: 18),
+              label: Text(label),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.orange,
+                foregroundColor: Colors.white,
+                disabledForegroundColor: AppColors.mutedText,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                elevation: 0,
+                textStyle: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                ),
+              ),
+            ),
     );
   }
 }

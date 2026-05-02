@@ -1,4 +1,5 @@
 import 'package:geolocator/geolocator.dart';
+import 'package:permission_handler/permission_handler.dart' as permissions;
 
 class PermissionService {
   const PermissionService._();
@@ -23,5 +24,19 @@ class PermissionService {
     }
 
     return null;
+  }
+
+  static Future<String?> ensureNotificationPermission() async {
+    final status = await permissions.Permission.notification.status;
+    if (status.isGranted || status.isLimited) {
+      return null;
+    }
+
+    final requested = await permissions.Permission.notification.request();
+    if (requested.isGranted || requested.isLimited) {
+      return null;
+    }
+
+    return 'Background tracking is on, but notifications are disabled.';
   }
 }

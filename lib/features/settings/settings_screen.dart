@@ -2,80 +2,124 @@ import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_config.dart';
-import '../../shared/widgets/rydar_logo.dart';
+import '../../shared/widgets/rydar_screen_chrome.dart';
+import '../../shared/widgets/rydar_stitch_widgets.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
   static const routeName = '/settings';
 
   @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  bool _voiceFeedback = true;
+
+  @override
   Widget build(BuildContext context) {
     final tokenAdded = AppConfig.hasMapboxToken;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      backgroundColor: AppColors.background,
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(22),
+        child: Column(
           children: [
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: AppColors.panel,
-                borderRadius: BorderRadius.circular(22),
-                border: Border.all(color: AppColors.divider),
-              ),
-              child: const Column(
+            const RydarTaskHeader(title: 'Settings'),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
                 children: [
-                  RydarLogo(size: 92),
-                  SizedBox(height: 16),
-                  Text(
-                    'Rydar',
-                    style: TextStyle(
-                      color: AppColors.text,
-                      fontSize: 32,
-                      fontWeight: FontWeight.w900,
+                  RydarSettingsRow(
+                    icon: Icons.map_rounded,
+                    label: 'Map style',
+                    value: 'Dark',
+                    onTap: () => _showMessage('Dark map style is active.'),
+                  ),
+                  RydarSettingsRow(
+                    icon: Icons.straighten_rounded,
+                    label: 'Units',
+                    value: 'Kilometers',
+                    onTap: () => _showMessage('Kilometers are active.'),
+                  ),
+                  RydarSettingsRow(
+                    icon: Icons.record_voice_over_rounded,
+                    label: 'Voice feedback',
+                    trailing: _OrangeSwitch(
+                      value: _voiceFeedback,
+                      onChanged: (value) {
+                        setState(() => _voiceFeedback = value);
+                        _showMessage(
+                          value
+                              ? 'Voice feedback enabled for this session.'
+                              : 'Voice feedback muted for this session.',
+                        );
+                      },
                     ),
                   ),
-                  SizedBox(height: 4),
+                  const RydarSettingsRow(
+                    icon: Icons.palette_rounded,
+                    label: 'App theme',
+                    value: 'Dark',
+                    locked: true,
+                  ),
+                  RydarSettingsRow(
+                    icon: Icons.key_rounded,
+                    label: 'Mapbox',
+                    value: tokenAdded ? 'Token added' : 'Token missing',
+                    onTap: () => _showMessage(
+                      tokenAdded
+                          ? 'Mapbox maps and route planning are enabled.'
+                          : 'Add MAPBOX_ACCESS_TOKEN in your local .env file.',
+                    ),
+                  ),
+                  RydarSettingsRow(
+                    icon: Icons.info_outline_rounded,
+                    label: 'About Rydar',
+                    value: 'v0.1.0',
+                    onTap: () => _showMessage(
+                      'Rydar tracks guest rides locally on this device.',
+                    ),
+                  ),
+                  const SizedBox(height: 28),
                   Text(
-                    'Version 0.1.0',
+                    'GUEST MODE',
+                    textAlign: TextAlign.center,
                     style: TextStyle(
-                      color: AppColors.mutedText,
-                      fontWeight: FontWeight.w700,
+                      color: AppColors.text.withValues(alpha: 0.3),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Some settings require an account',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: AppColors.text.withValues(alpha: 0.25),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Center(
+                    child: TextButton(
+                      onPressed: () =>
+                          _showMessage('Accounts are coming soon.'),
+                      child: Text(
+                        'CREATE AN ACCOUNT',
+                        style: TextStyle(
+                          color: AppColors.orange.withValues(alpha: 0.8),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
                     ),
                   ),
                 ],
-              ),
-            ),
-            const SizedBox(height: 18),
-            _SettingTile(
-              icon: Icons.person_outline_rounded,
-              label: 'Mode',
-              value: 'Guest Mode',
-            ),
-            const SizedBox(height: 12),
-            _SettingTile(
-              icon: Icons.map_rounded,
-              label: 'Mapbox',
-              value: tokenAdded ? 'Mapbox token added' : 'Mapbox token missing',
-            ),
-            const SizedBox(height: 18),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.panel,
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(
-                  color: AppColors.orange.withValues(alpha: 0.6),
-                ),
-              ),
-              child: const Text(
-                "Paste your token in lib/core/constants/app_config.dart to enable maps.",
-                style: TextStyle(
-                  color: AppColors.mutedText,
-                  fontWeight: FontWeight.w700,
-                ),
               ),
             ),
           ],
@@ -83,57 +127,28 @@ class SettingsScreen extends StatelessWidget {
       ),
     );
   }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
+  }
 }
 
-class _SettingTile extends StatelessWidget {
-  const _SettingTile({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
+class _OrangeSwitch extends StatelessWidget {
+  const _OrangeSwitch({required this.value, required this.onChanged});
 
-  final IconData icon;
-  final String label;
-  final String value;
+  final bool value;
+  final ValueChanged<bool> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: AppColors.panel,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.divider),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: AppColors.orange),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: const TextStyle(
-                    color: AppColors.mutedText,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    color: AppColors.text,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 16,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+    return Switch(
+      value: value,
+      activeThumbColor: Colors.white,
+      activeTrackColor: AppColors.orange,
+      inactiveThumbColor: AppColors.secondary,
+      inactiveTrackColor: AppColors.surfaceContainerHigh,
+      onChanged: onChanged,
     );
   }
 }

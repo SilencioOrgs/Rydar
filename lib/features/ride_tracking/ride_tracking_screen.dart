@@ -1,15 +1,37 @@
+import 'dart:async';
+import 'dart:math' as math;
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/utils/distance_utils.dart';
 import '../../core/utils/duration_utils.dart';
 import '../../core/utils/speed_utils.dart';
+import '../../data/local/local_ride_preferences.dart';
+import '../../data/models/route_point_model.dart';
 import '../../services/mapbox_service.dart';
 import '../../shared/widgets/map_route_view.dart';
-import '../../shared/widgets/rydar_button.dart';
-import '../../shared/widgets/stat_card.dart';
 import '../ride_summary/ride_summary_screen.dart';
 import 'ride_tracking_controller.dart';
+
+part 'ride_tracking_widgets.dart';
+
+RouteVehicle _vehicleFromName(String name) {
+  return RouteVehicle.values.firstWhere(
+    (vehicle) => vehicle.name == name,
+    orElse: () => RouteVehicle.car,
+  );
+}
+
+RydarMapStyle _mapStyleFromName(String name) {
+  return RydarMapStyle.values.firstWhere(
+    (style) => style.name == name,
+    orElse: () => RydarMapStyle.dark,
+  );
+}
+
+enum RideDisplayMode { simple, sport }
 
 class RideTrackingScreen extends StatefulWidget {
   const RideTrackingScreen({super.key});
@@ -20,392 +42,636 @@ class RideTrackingScreen extends StatefulWidget {
 
 class _RideTrackingScreenState extends State<RideTrackingScreen> {
   late final RideTrackingController _controller;
+  final MapRouteController _mapController = MapRouteController();
+  RydarMapStyle _mapStyle = RydarMapStyle.dark;
+  RideDisplayMode _displayMode = RideDisplayMode.simple;
+  bool _isPickingFinishLine = false;
 
   @override
   void initState() {
     super.initState();
-    _controller = RideTrackingController()..addListener(_onControllerChanged);
+    final preferences = LocalRidePreferences.instance;
+    _mapStyle = _mapStyleFromName(preferences.mapStyleName);
+    _controller =
+        RideTrackingController(
+            initialVehicle: _vehicleFromName(preferences.vehicleName),
+            initialGeofenceRadiusMeters: preferences.bubbleRadiusMeters,
+          )
+          ..onFinishBubbleEntered = _finishRide
+          ..addListener(_rebuild);
   }
 
   @override
   void dispose() {
     _controller
-      ..removeListener(_onControllerChanged)
+      ..removeListener(_rebuild)
       ..dispose();
     super.dispose();
   }
 
-  void _onControllerChanged() => setState(() {});
+  void _rebuild() => setState(() {});
 
   @override
   Widget build(BuildContext context) {
     final isIdle = _controller.status == RideTrackingStatus.idle;
+    final isArmed = _controller.status == RideTrackingStatus.armed;
     final isTracking = _controller.status == RideTrackingStatus.tracking;
     final isPaused = _controller.status == RideTrackingStatus.paused;
     final isFinishing = _controller.status == RideTrackingStatus.finishing;
+    final bottomPad = MediaQuery.paddingOf(context).bottom;
+    final sportModeAvailable =
+        _controller.selectedVehicle != RouteVehicle.walking;
+    final effectiveDisplayMode = sportModeAvailable
+        ? _displayMode
+        : RideDisplayMode.simple;
+    final isSportMode = effectiveDisplayMode == RideDisplayMode.sport;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Track Ride')),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(18),
-          children: [
-            MapRouteView(
-              points: _controller.routePoints,
-              plannedRoutePoints: _controller.plannedRoute?.points ?? const [],
-              finishLine: _controller.finishLine,
-              onFinishLineSelected: _controller.setFinishLine,
-              height: 300,
-              followLatestPoint: true,
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          // ── Full-screen map ──────────────────────────────────────────
+          if (isSportMode)
+            Positioned.fill(child: _SportModeView(controller: _controller))
+          else ...[
+            Positioned.fill(
+              child: MapRouteView(
+                controller: _mapController,
+                points: _controller.routePoints,
+                plannedRoutePoints:
+                    _controller.plannedRoute?.points ?? const [],
+                finishLine: _controller.finishLine,
+                startLine: _controller.startLine,
+                bubbleRadiusMeters: _controller.geofenceRadiusMeters,
+                currentLocation: _controller.currentLocation,
+                locationFocusRequest: _controller.locationFocusRequest,
+                followLatestPoint: true,
+                borderRadius: 0,
+                mapStyle: _mapStyle,
+              ),
             ),
-            const SizedBox(height: 12),
-            _MapToolsCard(
-              controller: _controller,
-              onExpandMap: _openExpandedMap,
-            ),
-            const SizedBox(height: 18),
-            if (_controller.errorMessage != null) ...[
-              _StatusMessage(message: _controller.errorMessage!),
-              const SizedBox(height: 14),
-            ],
-            if (_controller.routeMessage != null) ...[
-              _StatusMessage(message: _controller.routeMessage!),
-              const SizedBox(height: 14),
-            ],
-            GridView.count(
-              crossAxisCount: 2,
-              childAspectRatio: 1.35,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              children: [
-                StatCard(
-                  label: 'Distance',
-                  value: DistanceUtils.formatMeters(_controller.distanceMeters),
-                ),
-                StatCard(
-                  label: 'Duration',
-                  value: DurationUtils.formatSeconds(
-                    _controller.durationSeconds,
-                  ),
-                ),
-                StatCard(
-                  label: 'Speed',
-                  value:
-                      '${SpeedUtils.formatKmh(_controller.currentSpeedMetersPerSecond)} km/h',
-                ),
-                StatCard(
-                  label: 'Avg speed',
-                  value:
-                      '${SpeedUtils.formatKmh(_controller.averageSpeedMetersPerSecond)} km/h',
-                ),
-                StatCard(
-                  label: 'Max speed',
-                  value:
-                      '${SpeedUtils.formatKmh(_controller.maxSpeedMetersPerSecond)} km/h',
-                ),
-                StatCard(
-                  label: 'GPS points',
-                  value: '${_controller.routePoints.length}',
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            if (isIdle)
-              RydarButton(
-                label: 'Start',
-                icon: Icons.play_arrow_rounded,
-                onPressed: () => _controller.start(),
-              ),
-            if (isTracking) ...[
-              RydarButton(
-                label: 'Pause',
-                icon: Icons.pause_rounded,
-                secondary: true,
-                onPressed: _controller.pause,
-              ),
-              const SizedBox(height: 12),
-              RydarButton(
-                label: 'Finish',
-                icon: Icons.flag_rounded,
-                onPressed: _finishRide,
-              ),
-            ],
-            if (isPaused) ...[
-              RydarButton(
-                label: 'Resume',
-                icon: Icons.play_arrow_rounded,
-                onPressed: _controller.resume,
-              ),
-              const SizedBox(height: 12),
-              RydarButton(
-                label: 'Finish',
-                icon: Icons.flag_rounded,
-                secondary: true,
-                onPressed: _finishRide,
-              ),
-            ],
-            if (isFinishing)
-              const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(18),
-                  child: CircularProgressIndicator(color: AppColors.orange),
-                ),
-              ),
+            const Positioned.fill(child: _MapShade()),
+            if (_isPickingFinishLine)
+              const Positioned.fill(child: _CenterPin()),
           ],
-        ),
+
+          // ── Top bar ─────────────────────────────────────────────────
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _GlassCircle(
+                      tooltip: 'Back',
+                      icon: Icons.arrow_back_ios_new_rounded,
+                      onTap: () => Navigator.of(context).maybePop(),
+                    ),
+                    const Spacer(),
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _GlassCircle(
+                          tooltip: 'Expand map',
+                          icon: Icons.open_in_full_rounded,
+                          onTap: _openExpandedMap,
+                        ),
+                        const SizedBox(height: 10),
+                        _GlassCircle(
+                          tooltip: 'Pin finish line',
+                          icon: Icons.add_location_alt_rounded,
+                          onTap: _startFinishLinePicker,
+                        ),
+                        const SizedBox(height: 10),
+                        _GlassCircle(
+                          tooltip: 'Map style',
+                          icon: Icons.layers_rounded,
+                          onTap: _showMapStylePicker,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          // ── Bottom controls ─────────────────────────────────────────
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: bottomPad + 16,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.sizeOf(context).height * 0.62,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_controller.errorMessage != null) ...[
+                      _GlassCard(
+                        child: Text(
+                          _controller.errorMessage!,
+                          style: const TextStyle(
+                            color: AppColors.text,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                    if (_controller.routeMessage != null) ...[
+                      _GlassCard(
+                        child: Text(
+                          _controller.routeMessage!,
+                          style: const TextStyle(
+                            color: AppColors.text,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                    _RideModeToggle(
+                      current: effectiveDisplayMode,
+                      sportAvailable: sportModeAvailable,
+                      onChanged: _setDisplayMode,
+                    ),
+                    const SizedBox(height: 8),
+                    _RoutePlannerBar(
+                      controller: _controller,
+                      onOpen: _showRouteSheet,
+                    ),
+                    if (_isPickingFinishLine) ...[
+                      const SizedBox(height: 8),
+                      _PinPickerActions(
+                        onCancel: _cancelFinishLinePicker,
+                        onPin: _pinFinishLineAtCenter,
+                      ),
+                    ],
+                    const SizedBox(height: 8),
+                    _RideControls(
+                      isIdle: isIdle,
+                      isArmed: isArmed,
+                      isTracking: isTracking,
+                      isPaused: isPaused,
+                      isFinishing: isFinishing,
+                      isLocating: _controller.isLocating,
+                      selectedVehicle: _controller.selectedVehicle,
+                      onShowStartOptions: _showStartOptions,
+                      onPause: _controller.pause,
+                      onResume: _controller.resume,
+                      onFinish: _finishRide,
+                      onFocusLocation: _focusOnMyLocation,
+                    ),
+                    const SizedBox(height: 10),
+                    _StatsBar(controller: _controller),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
+  // ── Actions ────────────────────────────────────────────────────────
   Future<void> _finishRide() async {
-    final ride = await _controller.finish();
-    if (!mounted) {
+    if (_controller.status == RideTrackingStatus.finishing ||
+        _controller.status == RideTrackingStatus.finished) {
       return;
     }
+    final ride = await _controller.finish();
+    if (!mounted) return;
     await Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => RideSummaryScreen(ride: ride)),
     );
   }
 
+  Future<void> _focusOnMyLocation() async {
+    await _controller.focusOnCurrentLocation();
+  }
+
   Future<void> _openExpandedMap() {
     return Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => _ExpandedMapScreen(controller: _controller),
+        builder: (_) => _ExpandedMapScreen(
+          controller: _controller,
+          mapStyle: _mapStyle,
+          onStyleChanged: _setMapStyle,
+        ),
       ),
     );
   }
+
+  void _showMapStylePicker() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _MapStyleSheet(
+        current: _mapStyle,
+        onSelected: (style) {
+          _setMapStyle(style);
+          Navigator.pop(context);
+        },
+      ),
+    );
+  }
+
+  void _showRouteSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => ListenableBuilder(
+        listenable: _controller,
+        builder: (ctx, _) => DraggableScrollableSheet(
+          initialChildSize: 0.64,
+          minChildSize: 0.36,
+          maxChildSize: 0.92,
+          expand: false,
+          builder: (context, scrollController) {
+            final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
+            return SafeArea(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(16, 8, 16, 16 + keyboardInset),
+                child: _RouteToolsCard(
+                  controller: _controller,
+                  scrollController: scrollController,
+                  onPinOnMap: _startFinishLinePicker,
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  void _showStartOptions() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _StartOptionsSheet(
+        selectedVehicle: _controller.selectedVehicle,
+        onStartExitBubble: () =>
+            _startFromSheet(offline: false, mode: RideStartMode.exitBubble),
+        onStartImmediate: () =>
+            _startFromSheet(offline: false, mode: RideStartMode.immediate),
+        onStartOfflineExitBubble: () =>
+            _startFromSheet(offline: true, mode: RideStartMode.exitBubble),
+        onStartOfflineImmediate: () =>
+            _startFromSheet(offline: true, mode: RideStartMode.immediate),
+      ),
+    );
+  }
+
+  Future<void> _startFromSheet({
+    required bool offline,
+    required RideStartMode mode,
+  }) async {
+    Navigator.of(context).pop();
+    if (offline) {
+      await _controller.startOffline(mode: mode);
+    } else {
+      await _controller.start(mode: mode);
+    }
+  }
+
+  void _setDisplayMode(RideDisplayMode mode) {
+    if (mode == RideDisplayMode.sport &&
+        _controller.selectedVehicle == RouteVehicle.walking) {
+      return;
+    }
+    setState(() => _displayMode = mode);
+  }
+
+  void _setMapStyle(RydarMapStyle style) {
+    setState(() => _mapStyle = style);
+    unawaited(LocalRidePreferences.instance.saveMapStyleName(style.name));
+  }
+
+  Future<void> _startFinishLinePicker() async {
+    final currentFinishLine = _controller.finishLine;
+    setState(() {
+      _displayMode = RideDisplayMode.simple;
+      _isPickingFinishLine = true;
+    });
+    if (currentFinishLine != null) {
+      await _mapController.focusOnPoint(currentFinishLine, zoom: 17);
+    }
+  }
+
+  void _cancelFinishLinePicker() {
+    setState(() => _isPickingFinishLine = false);
+  }
+
+  Future<void> _pinFinishLineAtCenter() async {
+    final point = await _mapController.centerPoint();
+    if (!mounted) {
+      return;
+    }
+    if (point == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Map is still loading. Try again.')),
+      );
+      return;
+    }
+    _controller.setFinishLine(point);
+    setState(() => _isPickingFinishLine = false);
+    if (_controller.navigationOrigin == null) {
+      await _controller.focusOnCurrentLocation();
+    }
+  }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+//  Expanded map
+// ═══════════════════════════════════════════════════════════════════════════
 class _ExpandedMapScreen extends StatefulWidget {
-  const _ExpandedMapScreen({required this.controller});
-
+  const _ExpandedMapScreen({
+    required this.controller,
+    required this.mapStyle,
+    required this.onStyleChanged,
+  });
   final RideTrackingController controller;
+  final RydarMapStyle mapStyle;
+  final ValueChanged<RydarMapStyle> onStyleChanged;
 
   @override
   State<_ExpandedMapScreen> createState() => _ExpandedMapScreenState();
 }
 
 class _ExpandedMapScreenState extends State<_ExpandedMapScreen> {
-  RideTrackingController get _controller => widget.controller;
+  final MapRouteController _mapController = MapRouteController();
+  late RydarMapStyle _style;
+  bool _isPickingFinishLine = false;
 
   @override
   void initState() {
     super.initState();
-    _controller.addListener(_onControllerChanged);
+    _style = widget.mapStyle;
+    widget.controller.addListener(_rebuild);
   }
 
   @override
   void dispose() {
-    _controller.removeListener(_onControllerChanged);
+    widget.controller.removeListener(_rebuild);
     super.dispose();
   }
 
-  void _onControllerChanged() => setState(() {});
+  void _rebuild() => setState(() {});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Route Map')),
-      body: SafeArea(
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: MapRouteView(
-                points: _controller.routePoints,
-                plannedRoutePoints:
-                    _controller.plannedRoute?.points ?? const [],
-                finishLine: _controller.finishLine,
-                onFinishLineSelected: _controller.setFinishLine,
-                followLatestPoint: true,
-                borderRadius: 0,
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: MapRouteView(
+              controller: _mapController,
+              points: widget.controller.routePoints,
+              plannedRoutePoints:
+                  widget.controller.plannedRoute?.points ?? const [],
+              finishLine: widget.controller.finishLine,
+              startLine: widget.controller.startLine,
+              bubbleRadiusMeters: widget.controller.geofenceRadiusMeters,
+              currentLocation: widget.controller.currentLocation,
+              locationFocusRequest: widget.controller.locationFocusRequest,
+              followLatestPoint: true,
+              borderRadius: 0,
+              mapStyle: _style,
+            ),
+          ),
+          const Positioned.fill(child: _MapShade()),
+          if (_isPickingFinishLine) const Positioned.fill(child: _CenterPin()),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _GlassCircle(
+                    tooltip: 'Back',
+                    icon: Icons.arrow_back_ios_new_rounded,
+                    onTap: () => Navigator.pop(context),
+                  ),
+                  const Spacer(),
+                  _GlassCircle(
+                    tooltip: 'Pin finish line',
+                    icon: Icons.add_location_alt_rounded,
+                    onTap: _startFinishLinePicker,
+                  ),
+                  const SizedBox(width: 10),
+                  _GlassCircle(
+                    tooltip: 'Map style',
+                    icon: Icons.layers_rounded,
+                    onTap: () {
+                      showModalBottomSheet<void>(
+                        context: context,
+                        backgroundColor: Colors.transparent,
+                        builder: (_) => _MapStyleSheet(
+                          current: _style,
+                          onSelected: (s) {
+                            setState(() => _style = s);
+                            widget.onStyleChanged(s);
+                            Navigator.pop(context);
+                          },
+                        ),
+                      );
+                    },
+                  ),
+                ],
               ),
             ),
+          ),
+          if (!_isPickingFinishLine)
             Positioned(
               left: 16,
               right: 16,
               bottom: 16,
-              child: _MapToolsCard(controller: _controller),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _MapToolsCard extends StatelessWidget {
-  const _MapToolsCard({required this.controller, this.onExpandMap});
-
-  final RideTrackingController controller;
-  final VoidCallback? onExpandMap;
-
-  @override
-  Widget build(BuildContext context) {
-    final plannedRoute = controller.plannedRoute;
-
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.panel,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.divider),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.flag_rounded, color: Color(0xFF1FDD8B)),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  controller.finishLine == null
-                      ? 'Tap the map to pin your finish line'
-                      : 'Finish line pinned',
-                  style: const TextStyle(
-                    color: AppColors.text,
-                    fontWeight: FontWeight.w800,
-                  ),
+              child: SafeArea(
+                top: false,
+                child: _RoutePlannerBar(
+                  controller: widget.controller,
+                  onOpen: _showRouteSheet,
                 ),
               ),
-              if (controller.isPlanningRoute)
-                const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(
-                    color: AppColors.orange,
-                    strokeWidth: 2,
-                  ),
-                ),
-              if (controller.finishLine != null) ...[
-                const SizedBox(width: 8),
-                IconButton(
-                  tooltip: 'Clear finish line',
-                  onPressed: controller.clearFinishLine,
-                  icon: const Icon(Icons.close_rounded),
-                ),
-              ],
-              if (onExpandMap != null) ...[
-                const SizedBox(width: 8),
-                IconButton.filledTonal(
-                  tooltip: 'Expand map',
-                  onPressed: onExpandMap,
-                  icon: const Icon(Icons.open_in_full_rounded),
-                ),
-              ],
-            ],
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: RouteVehicle.values.map((vehicle) {
-              final isSelected = vehicle == controller.selectedVehicle;
-              return ChoiceChip(
-                selected: isSelected,
-                avatar: Icon(
-                  _vehicleIcon(vehicle),
-                  size: 18,
-                  color: isSelected ? AppColors.background : AppColors.text,
-                ),
-                label: Text(vehicle.label),
-                labelStyle: TextStyle(
-                  color: isSelected ? AppColors.background : AppColors.text,
-                  fontWeight: FontWeight.w800,
-                ),
-                selectedColor: AppColors.orange,
-                backgroundColor: AppColors.panelSoft,
-                side: BorderSide(
-                  color: isSelected ? AppColors.orange : AppColors.divider,
-                ),
-                onSelected: (_) => controller.selectVehicle(vehicle),
-              );
-            }).toList(),
-          ),
-          if (plannedRoute != null) ...[
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                _RouteStat(
-                  icon: Icons.route_rounded,
-                  value: DistanceUtils.formatMeters(
-                    plannedRoute.distanceMeters,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                _RouteStat(
-                  icon: Icons.schedule_rounded,
-                  value: DurationUtils.formatSeconds(
-                    plannedRoute.durationSeconds,
-                  ),
-                ),
-                const Spacer(),
-              ],
             ),
-          ],
+          if (_isPickingFinishLine)
+            Positioned(
+              left: 16,
+              right: 16,
+              bottom: 16,
+              child: SafeArea(
+                top: false,
+                child: _PinPickerActions(
+                  onCancel: _cancelFinishLinePicker,
+                  onPin: _pinFinishLineAtCenter,
+                ),
+              ),
+            ),
         ],
       ),
     );
   }
-}
 
-class _RouteStat extends StatelessWidget {
-  const _RouteStat({required this.icon, required this.value});
-
-  final IconData icon;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, color: const Color(0xFF38C6FF), size: 18),
-        const SizedBox(width: 6),
-        Text(
-          value,
-          style: const TextStyle(
-            color: AppColors.text,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-      ],
-    );
+  Future<void> _startFinishLinePicker() async {
+    final currentFinishLine = widget.controller.finishLine;
+    setState(() => _isPickingFinishLine = true);
+    if (currentFinishLine != null) {
+      await _mapController.focusOnPoint(currentFinishLine, zoom: 17);
+    }
   }
-}
 
-IconData _vehicleIcon(RouteVehicle vehicle) {
-  return switch (vehicle) {
-    RouteVehicle.car => Icons.directions_car_rounded,
-    RouteVehicle.motorcycle => Icons.two_wheeler_rounded,
-    RouteVehicle.bicycle => Icons.directions_bike_rounded,
-    RouteVehicle.walking => Icons.directions_walk_rounded,
-  };
-}
+  void _cancelFinishLinePicker() {
+    setState(() => _isPickingFinishLine = false);
+  }
 
-class _StatusMessage extends StatelessWidget {
-  const _StatusMessage({required this.message});
-
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.panel,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.orange),
-      ),
-      child: Text(
-        message,
-        style: const TextStyle(
-          color: AppColors.text,
-          fontWeight: FontWeight.w700,
+  void _showRouteSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => ListenableBuilder(
+        listenable: widget.controller,
+        builder: (ctx, _) => DraggableScrollableSheet(
+          initialChildSize: 0.58,
+          minChildSize: 0.32,
+          maxChildSize: 0.90,
+          expand: false,
+          builder: (context, scrollController) {
+            final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
+            return SafeArea(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(16, 8, 16, 16 + keyboardInset),
+                child: _RouteToolsCard(
+                  controller: widget.controller,
+                  scrollController: scrollController,
+                  onPinOnMap: _startFinishLinePicker,
+                ),
+              ),
+            );
+          },
         ),
       ),
     );
   }
+
+  Future<void> _pinFinishLineAtCenter() async {
+    final point = await _mapController.centerPoint();
+    if (!mounted) {
+      return;
+    }
+    if (point == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Map is still loading. Try again.')),
+      );
+      return;
+    }
+    widget.controller.setFinishLine(point);
+    setState(() => _isPickingFinishLine = false);
+    if (widget.controller.navigationOrigin == null) {
+      await widget.controller.focusOnCurrentLocation();
+    }
+  }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  Map style picker sheet
+// ═══════════════════════════════════════════════════════════════════════════
+class _MapStyleSheet extends StatelessWidget {
+  const _MapStyleSheet({required this.current, required this.onSelected});
+  final RydarMapStyle current;
+  final ValueChanged<RydarMapStyle> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Container(
+        margin: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: const Color(0xF0101010),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: AppColors.glassBorder(0.12)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Map Style',
+              style: TextStyle(
+                color: AppColors.text,
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: RydarMapStyle.values.map((style) {
+                final selected = style == current;
+                return GestureDetector(
+                  onTap: () => onSelected(style),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    width: 90,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? AppColors.orange.withValues(alpha: 0.15)
+                          : AppColors.glassWhite(0.05),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: selected
+                            ? AppColors.orange
+                            : AppColors.glassBorder(0.10),
+                        width: selected ? 1.5 : 1,
+                      ),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          style.icon,
+                          size: 26,
+                          color: selected ? AppColors.orange : AppColors.text,
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          style.label,
+                          style: TextStyle(
+                            color: selected ? AppColors.orange : AppColors.text,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  Ride controls row
+// ═══════════════════════════════════════════════════════════════════════════

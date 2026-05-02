@@ -18,8 +18,14 @@
 	<string>Rydar uses the camera so you can add a photo to your ride card.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Rydar uses your location while the app is open to track ride distance and route.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Rydar uses background location only while an active ride is recording.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+	</array>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>Rydar saves generated ride cards locally on your device.</string>
+	<string>Rydar saves generated ride cards to your photo gallery.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Rydar lets you choose a photo for your ride card.</string>
 	<key>CFBundlePackageType</key>

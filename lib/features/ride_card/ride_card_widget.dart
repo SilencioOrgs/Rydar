@@ -1,29 +1,58 @@
 import 'dart:io';
 import 'dart:math';
-import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
+import '../../core/constants/app_assets.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/utils/distance_utils.dart';
 import '../../core/utils/duration_utils.dart';
 import '../../core/utils/speed_utils.dart';
 import '../../data/models/ride_model.dart';
 import '../../data/models/route_point_model.dart';
-import '../../shared/widgets/rydar_logo.dart';
+
+enum RideCardColorTheme {
+  orangeBlack,
+  redBlack;
+
+  String get label {
+    return switch (this) {
+      RideCardColorTheme.orangeBlack => 'Orange',
+      RideCardColorTheme.redBlack => 'Red',
+    };
+  }
+
+  Color get accent {
+    return switch (this) {
+      RideCardColorTheme.orangeBlack => AppColors.orange,
+      RideCardColorTheme.redBlack => const Color(0xFFE32828),
+    };
+  }
+
+  Color get shadow {
+    return switch (this) {
+      RideCardColorTheme.orangeBlack => const Color(0xFF5A2500),
+      RideCardColorTheme.redBlack => const Color(0xFF4E0507),
+    };
+  }
+}
 
 class RideCardWidget extends StatelessWidget {
-  const RideCardWidget({super.key, required this.ride});
+  const RideCardWidget({
+    super.key,
+    required this.ride,
+    this.colorTheme = RideCardColorTheme.orangeBlack,
+  });
 
   final RideModel ride;
+  final RideCardColorTheme colorTheme;
 
   @override
   Widget build(BuildContext context) {
     final photoPath = ride.photoPath;
     return Container(
       width: 1080,
-      height: 1350,
+      height: 1920,
       color: AppColors.background,
       child: Stack(
         fit: StackFit.expand,
@@ -32,102 +61,25 @@ class RideCardWidget extends StatelessWidget {
             Image.file(File(photoPath), fit: BoxFit.cover)
           else
             const _NoPhotoBackdrop(),
-          Container(color: Colors.black.withValues(alpha: 0.58)),
-          Positioned(
-            left: 64,
-            right: 64,
-            top: 64,
-            child: Row(
-              children: [
-                const RydarLogo(size: 88),
-                const SizedBox(width: 22),
-                const Expanded(
-                  child: Text(
-                    'Rydar',
-                    style: TextStyle(
-                      color: AppColors.orange,
-                      fontSize: 56,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
+          _RideCardFade(colorTheme: colorTheme),
+          if (ride.routePoints.length >= 2)
+            Positioned(
+              left: 72,
+              right: 72,
+              bottom: 330,
+              height: 360,
+              child: CustomPaint(
+                painter: _MinimalRoutePainter(
+                  points: ride.routePoints,
+                  accent: colorTheme.accent,
                 ),
-                Text(
-                  DateFormat('MMM d, yyyy').format(ride.dateTime),
-                  style: const TextStyle(
-                    color: AppColors.text,
-                    fontSize: 28,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Positioned(
-            left: 64,
-            right: 64,
-            bottom: 64,
-            child: Container(
-              padding: const EdgeInsets.all(38),
-              decoration: BoxDecoration(
-                color: AppColors.panel.withValues(alpha: 0.92),
-                borderRadius: BorderRadius.circular(30),
-                border: Border.all(color: AppColors.orange, width: 3),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'GUEST RIDE',
-                    style: TextStyle(
-                      color: AppColors.orange,
-                      fontSize: 24,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  Text(
-                    '${DistanceUtils.formatKilometers(ride.distanceMeters)} km',
-                    style: const TextStyle(
-                      color: AppColors.text,
-                      fontSize: 92,
-                      fontWeight: FontWeight.w900,
-                      height: 0.95,
-                    ),
-                  ),
-                  const SizedBox(height: 34),
-                  Row(
-                    children: [
-                      _CardStat(
-                        label: 'Duration',
-                        value: DurationUtils.formatSeconds(
-                          ride.durationSeconds,
-                        ),
-                      ),
-                      _CardStat(
-                        label: 'Avg speed',
-                        value:
-                            '${SpeedUtils.formatKmh(ride.averageSpeedMetersPerSecond)} km/h',
-                      ),
-                      _CardStat(
-                        label: 'Max speed',
-                        value:
-                            '${SpeedUtils.formatKmh(ride.maxSpeedMetersPerSecond)} km/h',
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 30),
-                  SizedBox(
-                    height: 150,
-                    width: double.infinity,
-                    child: CustomPaint(
-                      painter: _MiniRoutePainter(ride.routePoints),
-                    ),
-                  ),
-                ],
               ),
             ),
+          Positioned(
+            left: 52,
+            right: 52,
+            bottom: 52,
+            child: _RideCardContent(ride: ride, colorTheme: colorTheme),
           ),
         ],
       ),
@@ -135,43 +87,267 @@ class RideCardWidget extends StatelessWidget {
   }
 }
 
-class _CardStat extends StatelessWidget {
-  const _CardStat({required this.label, required this.value});
+class _RideCardFade extends StatelessWidget {
+  const _RideCardFade({required this.colorTheme});
 
-  final String label;
-  final String value;
+  final RideCardColorTheme colorTheme;
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label.toUpperCase(),
-            style: const TextStyle(
-              color: AppColors.orange,
-              fontSize: 18,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 10),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(
-              value,
-              style: const TextStyle(
-                color: AppColors.text,
-                fontSize: 34,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ),
-        ],
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.black.withValues(alpha: 0.02),
+            Colors.black.withValues(alpha: 0.08),
+            Colors.black.withValues(alpha: 0.20),
+            colorTheme.shadow.withValues(alpha: 0.70),
+            Colors.black.withValues(alpha: 0.96),
+          ],
+          stops: const [0, 0.45, 0.63, 0.82, 1],
+        ),
       ),
     );
   }
+}
+
+class _RideCardContent extends StatelessWidget {
+  const _RideCardContent({required this.ride, required this.colorTheme});
+
+  final RideModel ride;
+  final RideCardColorTheme colorTheme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _MetricGrid(ride: ride, accent: colorTheme.accent),
+        const SizedBox(height: 34),
+        Row(
+          children: [
+            _CardLogo(accent: colorTheme.accent),
+            const SizedBox(width: 14),
+            Text(
+              'RYDAR',
+              style: TextStyle(
+                color: colorTheme.accent,
+                fontSize: 36,
+                height: 1,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 2,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _MetricGrid extends StatelessWidget {
+  const _MetricGrid({required this.ride, required this.accent});
+
+  final RideModel ride;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: _TextMetric(
+                label: 'Distance',
+                value:
+                    '${DistanceUtils.formatKilometers(ride.distanceMeters)} km',
+                accent: accent,
+              ),
+            ),
+            const SizedBox(width: 42),
+            Expanded(
+              child: _TextMetric(
+                label: 'Avg Speed',
+                value:
+                    '${SpeedUtils.formatKmh(ride.averageSpeedMetersPerSecond)} kph',
+                accent: accent,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 28),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: _TextMetric(
+                label: 'Top Speed',
+                value:
+                    '${SpeedUtils.formatKmh(ride.maxSpeedMetersPerSecond)} kph',
+                accent: accent,
+              ),
+            ),
+            const SizedBox(width: 42),
+            Expanded(
+              child: _TextMetric(
+                label: 'Duration',
+                value: DurationUtils.formatSeconds(ride.durationSeconds),
+                accent: accent,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _TextMetric extends StatelessWidget {
+  const _TextMetric({
+    required this.label,
+    required this.value,
+    required this.accent,
+  });
+
+  final String label;
+  final String value;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(
+            label,
+            maxLines: 1,
+            style: TextStyle(
+              color: accent,
+              fontSize: 34,
+              height: 1,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(
+            value,
+            maxLines: 1,
+            style: const TextStyle(
+              color: AppColors.text,
+              fontSize: 48,
+              height: 0.95,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CardLogo extends StatelessWidget {
+  const _CardLogo({required this.accent});
+
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 46,
+      height: 46,
+      child: ColorFiltered(
+        colorFilter: ColorFilter.mode(accent, BlendMode.srcIn),
+        child: Image.asset(AppAssets.appIconTransparent, fit: BoxFit.contain),
+      ),
+    );
+  }
+}
+
+class _MinimalRoutePainter extends CustomPainter {
+  const _MinimalRoutePainter({required this.points, required this.accent});
+
+  final List<RoutePointModel> points;
+  final Color accent;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (!_hasVisibleShape) {
+      return;
+    }
+
+    final rect = Rect.fromLTWH(
+      size.width * 0.10,
+      size.height * 0.08,
+      size.width * 0.80,
+      size.height * 0.84,
+    );
+    final path = _routePath(rect);
+    final glow = Paint()
+      ..color = accent.withValues(alpha: 0.28)
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..strokeWidth = 18
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12);
+    final line = Paint()
+      ..color = accent
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..strokeWidth = 7;
+
+    canvas.drawPath(path, glow);
+    canvas.drawPath(path, line);
+  }
+
+  Path _routePath(Rect rect) {
+    final minLat = points.map((p) => p.latitude).reduce(min);
+    final maxLat = points.map((p) => p.latitude).reduce(max);
+    final minLng = points.map((p) => p.longitude).reduce(min);
+    final maxLng = points.map((p) => p.longitude).reduce(max);
+    final latRange = max(0.00001, maxLat - minLat);
+    final lngRange = max(0.00001, maxLng - minLng);
+    final path = Path();
+
+    for (var i = 0; i < points.length; i++) {
+      final point = points[i];
+      final x =
+          rect.left + ((point.longitude - minLng) / lngRange) * rect.width;
+      final y =
+          rect.top + (1 - ((point.latitude - minLat) / latRange)) * rect.height;
+      if (i == 0) {
+        path.moveTo(x, y);
+      } else {
+        path.lineTo(x, y);
+      }
+    }
+    return path;
+  }
+
+  bool get _hasVisibleShape {
+    final minLat = points.map((p) => p.latitude).reduce(min);
+    final maxLat = points.map((p) => p.latitude).reduce(max);
+    final minLng = points.map((p) => p.longitude).reduce(min);
+    final maxLng = points.map((p) => p.longitude).reduce(max);
+    return (maxLat - minLat).abs() > 0.00002 ||
+        (maxLng - minLng).abs() > 0.00002;
+  }
+
+  @override
+  bool shouldRepaint(covariant _MinimalRoutePainter oldDelegate) =>
+      oldDelegate.points != points || oldDelegate.accent != accent;
 }
 
 class _NoPhotoBackdrop extends StatelessWidget {
@@ -207,85 +383,4 @@ class _TrackBackdropPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-class _MiniRoutePainter extends CustomPainter {
-  const _MiniRoutePainter(this.points);
-
-  final List<RoutePointModel> points;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final borderPaint = Paint()
-      ..color = AppColors.divider
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2;
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(22)),
-      borderPaint,
-    );
-
-    if (points.length < 2) {
-      final textPainter = TextPainter(
-        text: const TextSpan(
-          text: 'Route preview',
-          style: TextStyle(
-            color: AppColors.orange,
-            fontSize: 26,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        textDirection: ui.TextDirection.ltr,
-      )..layout(maxWidth: size.width);
-      textPainter.paint(
-        canvas,
-        Offset(
-          (size.width - textPainter.width) / 2,
-          (size.height - textPainter.height) / 2,
-        ),
-      );
-      return;
-    }
-
-    final minLat = points.map((p) => p.latitude).reduce(min);
-    final maxLat = points.map((p) => p.latitude).reduce(max);
-    final minLng = points.map((p) => p.longitude).reduce(min);
-    final maxLng = points.map((p) => p.longitude).reduce(max);
-    final latRange = max(0.00001, maxLat - minLat);
-    final lngRange = max(0.00001, maxLng - minLng);
-    final path = Path();
-
-    for (var i = 0; i < points.length; i++) {
-      final point = points[i];
-      final x =
-          26 + ((point.longitude - minLng) / lngRange) * (size.width - 52);
-      final y =
-          26 +
-          (1 - ((point.latitude - minLat) / latRange)) * (size.height - 52);
-      if (i == 0) {
-        path.moveTo(x, y);
-      } else {
-        path.lineTo(x, y);
-      }
-    }
-
-    final glowPaint = Paint()
-      ..color = AppColors.orange.withValues(alpha: 0.22)
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round
-      ..strokeWidth = 16;
-    final linePaint = Paint()
-      ..color = AppColors.orange
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round
-      ..strokeWidth = 7;
-    canvas.drawPath(path, glowPaint);
-    canvas.drawPath(path, linePaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _MiniRoutePainter oldDelegate) =>
-      oldDelegate.points != points;
 }
