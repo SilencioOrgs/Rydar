@@ -1,11 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/utils/distance_utils.dart';
+import '../../core/utils/duration_utils.dart';
 import '../../core/utils/speed_utils.dart';
+import '../../data/local/local_ride_preferences.dart';
 import '../../data/local/local_ride_storage.dart';
 import '../../data/models/ride_model.dart';
+import '../../data/models/scooter_model.dart';
+import '../../services/auth_service.dart';
+import '../../services/cloud_ride_service.dart';
 import '../../shared/widgets/rydar_screen_chrome.dart';
+import '../../shared/widgets/motorcycle_category_picker.dart';
 
 class LeaderboardScreen extends StatefulWidget {
   const LeaderboardScreen({super.key});
@@ -17,22 +24,75 @@ class LeaderboardScreen extends StatefulWidget {
 }
 
 class _LeaderboardScreenState extends State<LeaderboardScreen> {
-  late List<RideModel> _rides;
+  List<RideModel> _rides = const [];
+  LeaderboardScope? _scope;
+  late ScooterModel _selectedMotorModel;
+  String? _selectedMotorModelId;
+  bool _loading = true;
+  bool _online = false;
+  String? _message;
 
   @override
   void initState() {
     super.initState();
+    _selectedMotorModelId =
+        LocalRidePreferences.instance.motorModelId ??
+        ScooterCatalog.defaultModel.id;
+    _selectedMotorModel =
+        ScooterCatalog.findById(_selectedMotorModelId) ??
+        ScooterCatalog.defaultModel;
     _load();
   }
 
-  void _load() {
-    _rides = LocalRideStorage.instance.getRides()
-      ..sort((a, b) => b.distanceMeters.compareTo(a.distanceMeters));
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _message = null;
+    });
+
+    final rides = LocalRideStorage.instance.getRides();
+    final online = await CloudRideService.instance.isOnline;
+    LeaderboardScope? scope;
+    String? message;
+
+    if (!online) {
+      message = 'Leaderboards are available online only.';
+    } else if (AuthService.instance.currentUser == null) {
+      message = 'Sign in with Google to view online leaderboards.';
+    } else if (rides.isEmpty) {
+      message =
+          'Save a ${_selectedMotorModel.label} ride to join its weekly location leaderboard.';
+    } else {
+      try {
+        scope = await CloudRideService.instance.fallbackScopeForLatestRide(
+          ride: rides.first,
+          motorModel: _selectedMotorModel,
+        );
+      } catch (_) {
+        message = 'Could not detect your latest ride location.';
+      }
+    }
+
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _rides = rides;
+      _online = online;
+      _scope = scope;
+      _message = message;
+      _loading = false;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final topRides = _rides.take(3).toList();
+    final scope = _scope;
+    final motorSelector = _MotorCategorySelector(
+      selected: _selectedMotorModel,
+      selectedId: _selectedMotorModelId,
+      onSelected: _setMotorModel,
+    );
     return Scaffold(
       backgroundColor: AppColors.background,
       extendBody: true,
@@ -48,7 +108,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                   onBack: () => Navigator.of(context).maybePop(),
                   trailing: IconButton(
                     tooltip: 'Refresh',
-                    onPressed: () => setState(_load),
+                    onPressed: _load,
                     icon: const Icon(
                       Icons.refresh_rounded,
                       color: AppColors.text,
@@ -60,26 +120,18 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                   child: RefreshIndicator(
                     color: AppColors.orange,
                     backgroundColor: AppColors.panel,
-                    onRefresh: () async => setState(_load),
+                    onRefresh: _load,
                     child: ListView(
                       padding: const EdgeInsets.fromLTRB(20, 18, 20, 120),
                       children: [
-                        _LeaderboardHero(totalRides: _rides.length),
-                        const SizedBox(height: 18),
-                        if (_rides.isEmpty)
-                          const _EmptyLeaderboard()
-                        else ...[
-                          _Podium(rides: topRides),
-                          const SizedBox(height: 18),
-                          const _SectionTitle('Local rankings'),
-                          const SizedBox(height: 10),
-                          ..._rides.asMap().entries.map((entry) {
-                            return _LeaderboardTile(
-                              rank: entry.key + 1,
-                              ride: entry.value,
-                            );
-                          }),
-                        ],
+                        motorSelector,
+                        const SizedBox(height: 16),
+                        if (_loading)
+                          const _LoadingLeaderboard()
+                        else if (!_online || _message != null || scope == null)
+                          _OnlineOnlyNotice(message: _message)
+                        else
+                          _OnlineLeaderboard(scope: scope, localRides: _rides),
                       ],
                     ),
                   ),
@@ -92,6 +144,63 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
       bottomNavigationBar: const RydarBottomNav(
         current: RydarNavItem.leaderboard,
       ),
+    );
+  }
+
+  Future<void> _setMotorModel(ScooterModel model) async {
+    setState(() {
+      _selectedMotorModel = model;
+      _selectedMotorModelId = model.id;
+    });
+    await LocalRidePreferences.instance.saveMotorModelId(model.id);
+    await _load();
+  }
+}
+
+class _OnlineLeaderboard extends StatelessWidget {
+  const _OnlineLeaderboard({required this.scope, required this.localRides});
+
+  final LeaderboardScope scope;
+  final List<RideModel> localRides;
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<LeaderboardEntry>>(
+      stream: CloudRideService.instance.topEntriesForScope(scope),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return const _OnlineOnlyNotice(
+            message: 'Could not load the online leaderboard right now.',
+          );
+        }
+        final entries = snapshot.data ?? const <LeaderboardEntry>[];
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _LeaderboardHero(scope: scope, totalRides: localRides.length),
+            const SizedBox(height: 18),
+            if (snapshot.connectionState == ConnectionState.waiting)
+              const _LoadingLeaderboard()
+            else if (entries.isEmpty)
+              _OnlineOnlyNotice(
+                message:
+                    'No weekly entries yet for ${scope.placeName}. Save a ride online to take the first spot.',
+              )
+            else ...[
+              _TopClaim(scope: scope, entry: entries.first),
+              const SizedBox(height: 18),
+              const _SectionTitle('Top 10 this week'),
+              const SizedBox(height: 10),
+              ...entries.asMap().entries.map((entry) {
+                return _LeaderboardTile(
+                  rank: entry.key + 1,
+                  entry: entry.value,
+                );
+              }),
+            ],
+          ],
+        );
+      },
     );
   }
 }
@@ -117,8 +226,9 @@ class _LeaderboardBackdrop extends StatelessWidget {
 }
 
 class _LeaderboardHero extends StatelessWidget {
-  const _LeaderboardHero({required this.totalRides});
+  const _LeaderboardHero({required this.scope, required this.totalRides});
 
+  final LeaderboardScope scope;
   final int totalRides;
 
   @override
@@ -150,9 +260,11 @@ class _LeaderboardHero extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Local leaderboard',
-                  style: TextStyle(
+                Text(
+                  scope.placeName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
                     color: AppColors.text,
                     fontSize: 22,
                     fontWeight: FontWeight.w900,
@@ -160,9 +272,7 @@ class _LeaderboardHero extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  totalRides == 0
-                      ? 'Save rides to start ranking your best efforts.'
-                      : '$totalRides saved rides ranked by distance.',
+                  '${scope.motorModel.label} ${scope.motorModel.ccLabel} - ${scope.weekId}. $totalRides local rides saved.',
                   style: TextStyle(
                     color: AppColors.text.withValues(alpha: 0.58),
                     fontSize: 13,
@@ -178,91 +288,60 @@ class _LeaderboardHero extends StatelessWidget {
   }
 }
 
-class _Podium extends StatelessWidget {
-  const _Podium({required this.rides});
+class _TopClaim extends StatelessWidget {
+  const _TopClaim({required this.scope, required this.entry});
 
-  final List<RideModel> rides;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final compact = constraints.maxWidth < 360;
-        return Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          children: List.generate(rides.length, (index) {
-            return SizedBox(
-              width: compact
-                  ? constraints.maxWidth
-                  : (constraints.maxWidth - 20) / 3,
-              child: _PodiumCard(rank: index + 1, ride: rides[index]),
-            );
-          }),
-        );
-      },
-    );
-  }
-}
-
-class _PodiumCard extends StatelessWidget {
-  const _PodiumCard({required this.rank, required this.ride});
-
-  final int rank;
-  final RideModel ride;
+  final LeaderboardScope scope;
+  final LeaderboardEntry entry;
 
   @override
   Widget build(BuildContext context) {
-    final accent = rank == 1
-        ? AppColors.orange
-        : AppColors.text.withValues(alpha: 0.72);
+    final claim =
+        'TOP 1 ${scope.motorModel.label.toUpperCase()} IN ${scope.placeName.toUpperCase()} THIS WEEK';
     return Container(
-      height: 136,
-      padding: const EdgeInsets.all(14),
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: AppColors.glassWhite(rank == 1 ? 0.08 : 0.045),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: rank == 1
-              ? AppColors.orange.withValues(alpha: 0.48)
-              : AppColors.glassBorder(0.10),
-        ),
+        color: AppColors.orange.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.orange.withValues(alpha: 0.45)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(Icons.workspace_premium_rounded, color: accent, size: 20),
-              const Spacer(),
-              Text(
-                '#$rank',
-                style: TextStyle(
-                  color: accent,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ],
-          ),
-          const Spacer(),
           Text(
-            DistanceUtils.formatMeters(ride.distanceMeters),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+            claim,
             style: const TextStyle(
-              color: AppColors.text,
-              fontSize: 20,
+              color: AppColors.orange,
+              fontSize: 14,
               fontWeight: FontWeight.w900,
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
           Text(
-            '${SpeedUtils.formatKmh(ride.averageSpeedMetersPerSecond)} km/h avg',
-            style: TextStyle(
-              color: AppColors.text.withValues(alpha: 0.50),
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
+            '${entry.displayName} - ${entry.topSpeedKmh.toStringAsFixed(1)} km/h',
+            style: const TextStyle(
+              color: AppColors.text,
+              fontSize: 22,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              onPressed: () => SharePlus.instance.share(
+                ShareParams(
+                  text:
+                      '$claim\n${entry.displayName}\n${entry.topSpeedKmh.toStringAsFixed(1)} KM/H\nRYDAR',
+                ),
+              ),
+              icon: const Icon(Icons.ios_share_rounded, size: 18),
+              label: const Text('SHARE RESULT'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.orange,
+                side: const BorderSide(color: AppColors.orange),
+              ),
             ),
           ),
         ],
@@ -272,10 +351,10 @@ class _PodiumCard extends StatelessWidget {
 }
 
 class _LeaderboardTile extends StatelessWidget {
-  const _LeaderboardTile({required this.rank, required this.ride});
+  const _LeaderboardTile({required this.rank, required this.entry});
 
   final int rank;
-  final RideModel ride;
+  final LeaderboardEntry entry;
 
   @override
   Widget build(BuildContext context) {
@@ -283,9 +362,13 @@ class _LeaderboardTile extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.glassWhite(0.045),
+        color: AppColors.glassWhite(rank == 1 ? 0.08 : 0.045),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.glassBorder(0.08)),
+        border: Border.all(
+          color: rank == 1
+              ? AppColors.orange.withValues(alpha: 0.48)
+              : AppColors.glassBorder(0.08),
+        ),
       ),
       child: Row(
         children: [
@@ -301,20 +384,38 @@ class _LeaderboardTile extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: Text(
-              DistanceUtils.formatMeters(ride.distanceMeters),
-              style: const TextStyle(
-                color: AppColors.text,
-                fontWeight: FontWeight.w800,
-                fontSize: 15,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  entry.displayName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.text,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  '${DistanceUtils.formatMeters(entry.distanceMeters)} - ${DurationUtils.formatSeconds(entry.durationSeconds)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: AppColors.text.withValues(alpha: 0.48),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
             ),
           ),
           Text(
-            '${SpeedUtils.formatKmh(ride.maxSpeedMetersPerSecond)} km/h',
+            '${SpeedUtils.formatKmh(entry.topSpeedKmh / 3.6)} km/h',
             style: TextStyle(
-              color: AppColors.text.withValues(alpha: 0.52),
-              fontWeight: FontWeight.w700,
+              color: AppColors.text.withValues(alpha: 0.72),
+              fontWeight: FontWeight.w900,
               fontSize: 12,
             ),
           ),
@@ -324,8 +425,62 @@ class _LeaderboardTile extends StatelessWidget {
   }
 }
 
-class _EmptyLeaderboard extends StatelessWidget {
-  const _EmptyLeaderboard();
+class _MotorCategorySelector extends StatelessWidget {
+  const _MotorCategorySelector({
+    required this.selected,
+    required this.selectedId,
+    required this.onSelected,
+  });
+
+  final ScooterModel selected;
+  final String? selectedId;
+  final ValueChanged<ScooterModel> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.glassWhite(0.055),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.glassBorder(0.10)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Choose motor category',
+            style: TextStyle(
+              color: AppColors.text,
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Honda and Yamaha scooters from 110cc to 160cc.',
+            style: TextStyle(
+              color: AppColors.text.withValues(alpha: 0.54),
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 14),
+          MotorcycleCategoryPicker(
+            selected: selected,
+            selectedId: selectedId,
+            onSelected: onSelected,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OnlineOnlyNotice extends StatelessWidget {
+  const _OnlineOnlyNotice({this.message});
+
+  final String? message;
 
   @override
   Widget build(BuildContext context) {
@@ -339,13 +494,13 @@ class _EmptyLeaderboard extends StatelessWidget {
       child: Column(
         children: [
           Icon(
-            Icons.leaderboard_rounded,
+            Icons.cloud_off_rounded,
             color: AppColors.orange.withValues(alpha: 0.76),
             size: 42,
           ),
           const SizedBox(height: 12),
           const Text(
-            'No rankings yet',
+            'Online leaderboard',
             style: TextStyle(
               color: AppColors.text,
               fontSize: 20,
@@ -354,7 +509,7 @@ class _EmptyLeaderboard extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            'Saved rides will appear here automatically.',
+            message ?? 'Connect to the internet to load rankings.',
             textAlign: TextAlign.center,
             style: TextStyle(
               color: AppColors.text.withValues(alpha: 0.54),
@@ -364,6 +519,18 @@ class _EmptyLeaderboard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _LoadingLeaderboard extends StatelessWidget {
+  const _LoadingLeaderboard();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 80),
+      child: Center(child: CircularProgressIndicator(color: AppColors.orange)),
     );
   }
 }

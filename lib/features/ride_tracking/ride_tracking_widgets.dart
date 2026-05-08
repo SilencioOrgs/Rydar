@@ -71,6 +71,11 @@ class _RideControls extends StatelessWidget {
 class _StartOptionsSheet extends StatelessWidget {
   const _StartOptionsSheet({
     required this.selectedVehicle,
+    required this.recordForLeaderboard,
+    required this.selectedMotorModel,
+    required this.selectedMotorModelId,
+    required this.onRecordForLeaderboardChanged,
+    required this.onMotorModelChanged,
     required this.onStartExitBubble,
     required this.onStartImmediate,
     required this.onStartOfflineExitBubble,
@@ -78,6 +83,11 @@ class _StartOptionsSheet extends StatelessWidget {
   });
 
   final RouteVehicle selectedVehicle;
+  final bool recordForLeaderboard;
+  final ScooterModel? selectedMotorModel;
+  final String? selectedMotorModelId;
+  final ValueChanged<bool> onRecordForLeaderboardChanged;
+  final ValueChanged<ScooterModel> onMotorModelChanged;
   final VoidCallback onStartExitBubble;
   final VoidCallback onStartImmediate;
   final VoidCallback onStartOfflineExitBubble;
@@ -98,102 +108,116 @@ class _StartOptionsSheet extends StatelessWidget {
               borderRadius: BorderRadius.circular(24),
               border: Border.all(color: AppColors.glassBorder(0.12)),
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: AppColors.orange.withValues(alpha: 0.14),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Icon(
-                        _vehicleIcon(selectedVehicle),
-                        color: AppColors.orange,
-                        size: 22,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'Start ${selectedVehicle.label.toLowerCase()} ride',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppColors.text,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w900,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: AppColors.orange.withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Icon(
+                          _vehicleIcon(selectedVehicle),
+                          color: AppColors.orange,
+                          size: 22,
                         ),
                       ),
-                    ),
-                    IconButton(
-                      tooltip: 'Close',
-                      onPressed: () => Navigator.of(context).pop(),
-                      icon: Icon(
-                        Icons.close_rounded,
-                        color: AppColors.text.withValues(alpha: 0.68),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Start ${selectedVehicle.label.toLowerCase()} ride',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: AppColors.text,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final isNarrow = constraints.maxWidth < 380;
-                    final exitBubbleButton = _StartModeButton(
-                      label: 'Exit bubble',
-                      caption: 'Timer starts after you leave',
-                      icon: Icons.radar_rounded,
-                      filled: true,
-                      onTap: onStartExitBubble,
-                    );
-                    final immediateButton = _StartModeButton(
-                      label: 'Start now',
-                      caption: 'Record immediately',
-                      icon: Icons.bolt_rounded,
-                      filled: false,
-                      onTap: onStartImmediate,
-                    );
-                    if (isNarrow) {
-                      return Column(
+                      IconButton(
+                        tooltip: 'Close',
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: Icon(
+                          Icons.close_rounded,
+                          color: AppColors.text.withValues(alpha: 0.68),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _LeaderboardRecordOption(
+                    enabled: recordForLeaderboard,
+                    selectedMotorModel: selectedMotorModel,
+                    selectedMotorModelId: selectedMotorModelId,
+                    onChanged: onRecordForLeaderboardChanged,
+                    onMotorModelChanged: onMotorModelChanged,
+                  ),
+                  const SizedBox(height: 12),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isNarrow = constraints.maxWidth < 380;
+                      final exitBubbleButton = _StartModeButton(
+                        label: 'Exit bubble',
+                        caption: 'Timer starts after you leave',
+                        icon: Icons.radar_rounded,
+                        filled: true,
+                        onTap: onStartExitBubble,
+                      );
+                      final immediateButton = _StartModeButton(
+                        label: 'Start now',
+                        caption: 'Record immediately',
+                        icon: Icons.bolt_rounded,
+                        filled: false,
+                        onTap: onStartImmediate,
+                      );
+                      if (isNarrow) {
+                        return Column(
+                          children: [
+                            exitBubbleButton,
+                            const SizedBox(height: 8),
+                            immediateButton,
+                          ],
+                        );
+                      }
+                      return Row(
                         children: [
-                          exitBubbleButton,
-                          const SizedBox(height: 8),
-                          immediateButton,
+                          Expanded(child: exitBubbleButton),
+                          const SizedBox(width: 8),
+                          Expanded(child: immediateButton),
                         ],
                       );
-                    }
-                    return Row(
-                      children: [
-                        Expanded(child: exitBubbleButton),
-                        const SizedBox(width: 8),
-                        Expanded(child: immediateButton),
-                      ],
-                    );
-                  },
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _OfflineStartChip(
-                        label: 'Offline bubble',
-                        onTap: onStartOfflineExitBubble,
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _OfflineStartChip(
+                          label: 'Offline bubble',
+                          onTap: recordForLeaderboard
+                              ? null
+                              : onStartOfflineExitBubble,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _OfflineStartChip(
-                        label: 'Offline now',
-                        onTap: onStartOfflineImmediate,
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _OfflineStartChip(
+                          label: 'Offline now',
+                          onTap: recordForLeaderboard
+                              ? null
+                              : onStartOfflineImmediate,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ],
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -215,7 +239,7 @@ class _StartModeButton extends StatelessWidget {
   final String caption;
   final IconData icon;
   final bool filled;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -282,7 +306,7 @@ class _OfflineStartChip extends StatelessWidget {
   const _OfflineStartChip({required this.label, required this.onTap});
 
   final String label;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -305,109 +329,71 @@ class _OfflineStartChip extends StatelessWidget {
   }
 }
 
-class _RideModeToggle extends StatelessWidget {
-  const _RideModeToggle({
-    required this.current,
-    required this.sportAvailable,
+class _LeaderboardRecordOption extends StatelessWidget {
+  const _LeaderboardRecordOption({
+    required this.enabled,
+    required this.selectedMotorModel,
+    required this.selectedMotorModelId,
     required this.onChanged,
+    required this.onMotorModelChanged,
   });
 
-  final RideDisplayMode current;
-  final bool sportAvailable;
-  final ValueChanged<RideDisplayMode> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(14),
-      child: BackdropFilter(
-        filter: AppColors.glassBlur,
-        child: Container(
-          padding: const EdgeInsets.all(4),
-          decoration: BoxDecoration(
-            color: AppColors.glassWhite(0.08),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppColors.glassBorder(0.10)),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: _RideModeOption(
-                  label: 'Simple',
-                  icon: Icons.map_rounded,
-                  selected: current == RideDisplayMode.simple,
-                  onTap: () => onChanged(RideDisplayMode.simple),
-                ),
-              ),
-              const SizedBox(width: 4),
-              Expanded(
-                child: _RideModeOption(
-                  label: 'Sports',
-                  icon: Icons.speed_rounded,
-                  selected: current == RideDisplayMode.sport,
-                  enabled: sportAvailable,
-                  onTap: () => onChanged(RideDisplayMode.sport),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _RideModeOption extends StatelessWidget {
-  const _RideModeOption({
-    required this.label,
-    required this.icon,
-    required this.selected,
-    required this.onTap,
-    this.enabled = true,
-  });
-
-  final String label;
-  final IconData icon;
-  final bool selected;
   final bool enabled;
-  final VoidCallback onTap;
+  final ScooterModel? selectedMotorModel;
+  final String? selectedMotorModelId;
+  final ValueChanged<bool> onChanged;
+  final ValueChanged<ScooterModel> onMotorModelChanged;
 
   @override
   Widget build(BuildContext context) {
-    final foreground = selected ? Colors.white : AppColors.text;
-    return Opacity(
-      opacity: enabled ? 1 : 0.42,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: enabled ? onTap : null,
-          borderRadius: BorderRadius.circular(11),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            height: 40,
-            decoration: BoxDecoration(
-              color: selected ? AppColors.orange : Colors.transparent,
-              borderRadius: BorderRadius.circular(11),
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.glassWhite(0.06),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.glassBorder(0.12)),
+      ),
+      child: Column(
+        children: [
+          SwitchListTile.adaptive(
+            value: enabled,
+            onChanged: onChanged,
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            activeThumbColor: AppColors.orange,
+            activeTrackColor: AppColors.orange.withValues(alpha: 0.28),
+            secondary: const Icon(
+              Icons.leaderboard_rounded,
+              color: AppColors.orange,
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon, color: foreground, size: 17),
-                const SizedBox(width: 6),
-                FittedBox(
-                  child: Text(
-                    label.toUpperCase(),
-                    style: TextStyle(
-                      color: foreground,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-              ],
+            title: const Text(
+              'Record in leaderboards',
+              style: TextStyle(
+                color: AppColors.text,
+                fontSize: 14,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            subtitle: Text(
+              'Online only. Saves your weekly top speed by location and motor.',
+              style: TextStyle(
+                color: AppColors.text.withValues(alpha: 0.56),
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
-        ),
+          if (enabled) ...[
+            const SizedBox(height: 10),
+            MotorcycleCategoryPicker(
+              selected: selectedMotorModel,
+              selectedId: selectedMotorModelId,
+              onSelected: onMotorModelChanged,
+              brandLabel: 'Motor brand',
+              modelLabel: 'Motor model',
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -416,343 +402,6 @@ class _RideModeOption extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════════════
 //  Stats bar
 // ═══════════════════════════════════════════════════════════════════════════
-class _SportModeView extends StatelessWidget {
-  const _SportModeView({required this.controller});
-
-  final RideTrackingController controller;
-
-  @override
-  Widget build(BuildContext context) {
-    final speedKmh = controller.currentSpeedMetersPerSecond * 3.6;
-    final origin = controller.navigationOrigin;
-    final finish = controller.finishLine;
-    final remainingMeters = origin == null || finish == null
-        ? null
-        : DistanceUtils.haversineMeters(
-            fromLat: origin.latitude,
-            fromLng: origin.longitude,
-            toLat: finish.latitude,
-            toLng: finish.longitude,
-          );
-    final bearing = origin == null || finish == null
-        ? null
-        : _bearingDegrees(origin, finish);
-    final direction = bearing == null ? '--' : _compassLabel(bearing);
-    final finishInfo = remainingMeters == null
-        ? 'No finish line'
-        : '${DistanceUtils.formatMeters(remainingMeters)} away';
-    final route = controller.plannedRoute;
-    final routeInfo = route == null
-        ? 'Route pending'
-        : '${DistanceUtils.formatMeters(route.distanceMeters)} route';
-
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: RadialGradient(
-          center: const Alignment(0, -0.18),
-          radius: 1.08,
-          colors: [
-            AppColors.orange.withValues(alpha: 0.14),
-            const Color(0xFF0B0B0D),
-            Colors.black,
-          ],
-        ),
-      ),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(22, 82, 22, 160),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final compact = constraints.maxHeight < 560;
-              return Align(
-                alignment: Alignment.topCenter,
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.topCenter,
-                  child: SizedBox(
-                    width: constraints.maxWidth,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _SportDirectionArrow(
-                          bearingDegrees: bearing,
-                          direction: direction,
-                          finishInfo: finishInfo,
-                        ),
-                        SizedBox(height: compact ? 14 : 28),
-                        _DigitalSpeedGauge(
-                          speedKmh: speedKmh,
-                          vehicle: controller.selectedVehicle,
-                        ),
-                        SizedBox(height: compact ? 12 : 22),
-                        _SportInfoGrid(
-                          distance: DistanceUtils.formatMeters(
-                            controller.distanceMeters,
-                          ),
-                          direction: direction,
-                          maxSpeed:
-                              '${SpeedUtils.formatKmh(controller.maxSpeedMetersPerSecond)} km/h',
-                          finishInfo: finishInfo,
-                          routeInfo: routeInfo,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SportDirectionArrow extends StatelessWidget {
-  const _SportDirectionArrow({
-    required this.bearingDegrees,
-    required this.direction,
-    required this.finishInfo,
-  });
-
-  final double? bearingDegrees;
-  final String direction;
-  final String finishInfo;
-
-  @override
-  Widget build(BuildContext context) {
-    final hasBearing = bearingDegrees != null;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        AnimatedRotation(
-          turns: (bearingDegrees ?? 0) / 360,
-          duration: const Duration(milliseconds: 360),
-          curve: Curves.easeOutCubic,
-          child: Icon(
-            Icons.navigation_rounded,
-            color: hasBearing
-                ? AppColors.orange
-                : AppColors.orange.withValues(alpha: 0.32),
-            size: 74,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          hasBearing ? direction : 'NO FINISH',
-          style: const TextStyle(
-            color: AppColors.orange,
-            fontSize: 18,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          finishInfo,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            color: AppColors.text.withValues(alpha: 0.60),
-            fontSize: 12,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _DigitalSpeedGauge extends StatelessWidget {
-  const _DigitalSpeedGauge({required this.speedKmh, required this.vehicle});
-
-  final double speedKmh;
-  final RouteVehicle vehicle;
-
-  @override
-  Widget build(BuildContext context) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween<double>(end: speedKmh.clamp(0, 200).toDouble()),
-      duration: const Duration(milliseconds: 420),
-      curve: Curves.easeOutCubic,
-      builder: (context, animatedSpeed, _) {
-        final progress = (animatedSpeed / 200).clamp(0.0, 1.0).toDouble();
-        return SizedBox(
-          width: 226,
-          height: 226,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              SizedBox(
-                width: 216,
-                height: 216,
-                child: CircularProgressIndicator(
-                  value: progress,
-                  strokeWidth: 12,
-                  backgroundColor: AppColors.glassWhite(0.08),
-                  color: AppColors.orange,
-                  strokeCap: StrokeCap.round,
-                ),
-              ),
-              Container(
-                width: 176,
-                height: 176,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.black.withValues(alpha: 0.48),
-                  border: Border.all(
-                    color: AppColors.orange.withValues(alpha: 0.28),
-                  ),
-                ),
-              ),
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    _vehicleIcon(vehicle),
-                    color: AppColors.orange,
-                    size: 24,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    animatedSpeed.round().toString().padLeft(3, '0'),
-                    style: const TextStyle(
-                      color: AppColors.orange,
-                      fontSize: 58,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0,
-                    ),
-                  ),
-                  Text(
-                    'KM/H  MAX 200',
-                    style: TextStyle(
-                      color: AppColors.text.withValues(alpha: 0.56),
-                      fontSize: 11,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _SportInfoGrid extends StatelessWidget {
-  const _SportInfoGrid({
-    required this.distance,
-    required this.direction,
-    required this.maxSpeed,
-    required this.finishInfo,
-    required this.routeInfo,
-  });
-
-  final String distance;
-  final String direction;
-  final String maxSpeed;
-  final String finishInfo;
-  final String routeInfo;
-
-  @override
-  Widget build(BuildContext context) {
-    final tiles = [
-      _SportInfoTile('Odometer', distance, Icons.straighten_rounded),
-      _SportInfoTile('Direction', direction, Icons.explore_rounded),
-      _SportInfoTile('Max speed', maxSpeed, Icons.speed_rounded),
-      _SportInfoTile('Finish', finishInfo, Icons.flag_rounded),
-      _SportInfoTile('Route', routeInfo, Icons.route_rounded),
-    ];
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final columns = constraints.maxWidth < 360 ? 1 : 2;
-        final gap = 8.0;
-        final width = (constraints.maxWidth - (gap * (columns - 1))) / columns;
-        return Wrap(
-          spacing: gap,
-          runSpacing: gap,
-          children: tiles
-              .map((tile) => SizedBox(width: width, height: 58, child: tile))
-              .toList(),
-        );
-      },
-    );
-  }
-}
-
-class _SportInfoTile extends StatelessWidget {
-  const _SportInfoTile(this.label, this.value, this.icon);
-
-  final String label;
-  final String value;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: AppColors.glassWhite(0.07),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.glassBorder(0.10)),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: AppColors.orange, size: 17),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label.toUpperCase(),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: AppColors.text.withValues(alpha: 0.48),
-                    fontSize: 9,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  value,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.text,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-double _bearingDegrees(RoutePointModel origin, RoutePointModel destination) {
-  final lat1 = origin.latitude * math.pi / 180;
-  final lat2 = destination.latitude * math.pi / 180;
-  final dLng = (destination.longitude - origin.longitude) * math.pi / 180;
-  final y = math.sin(dLng) * math.cos(lat2);
-  final x =
-      math.cos(lat1) * math.sin(lat2) -
-      math.sin(lat1) * math.cos(lat2) * math.cos(dLng);
-  return (math.atan2(y, x) * 180 / math.pi + 360) % 360;
-}
-
-String _compassLabel(double degrees) {
-  const labels = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
-  final index = ((degrees + 22.5) / 45).floor() % labels.length;
-  return labels[index];
-}
-
 class _StatsBar extends StatelessWidget {
   const _StatsBar({required this.controller});
   final RideTrackingController controller;
@@ -1048,7 +697,17 @@ class _RouteToolsCardState extends State<_RouteToolsCard> {
               _RoutePanelSection(
                 title: 'Vehicle',
                 icon: _vehicleIcon(controller.selectedVehicle),
-                child: _VehicleSelector(controller: controller),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _VehicleSelector(controller: controller),
+                    if (controller.selectedVehicle ==
+                        RouteVehicle.motorcycle) ...[
+                      const SizedBox(height: 14),
+                      _MotorModelSelector(controller: controller),
+                    ],
+                  ],
+                ),
               ),
               if (route != null)
                 _RouteDetailsRow(
@@ -1318,6 +977,40 @@ class _VehicleSelector extends StatelessWidget {
           }).toList(),
         );
       },
+    );
+  }
+}
+
+class _MotorModelSelector extends StatelessWidget {
+  const _MotorModelSelector({required this.controller});
+
+  final RideTrackingController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final selected =
+        controller.selectedMotorModel ?? ScooterCatalog.defaultModel;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'SCOOTER CATEGORY',
+          style: TextStyle(
+            color: AppColors.text.withValues(alpha: 0.56),
+            fontSize: 11,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1,
+          ),
+        ),
+        const SizedBox(height: 8),
+        MotorcycleCategoryPicker(
+          selected: selected,
+          selectedId: controller.selectedMotorModelId,
+          onSelected: controller.selectMotorModel,
+          brandLabel: 'Motor brand',
+          modelLabel: 'Motor model',
+        ),
+      ],
     );
   }
 }

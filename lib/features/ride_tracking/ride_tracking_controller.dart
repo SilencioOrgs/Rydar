@@ -8,6 +8,7 @@ import '../../core/utils/distance_utils.dart';
 import '../../data/local/local_ride_preferences.dart';
 import '../../data/models/ride_model.dart';
 import '../../data/models/route_point_model.dart';
+import '../../data/models/scooter_model.dart';
 import '../../services/location_service.dart';
 import '../../services/mapbox_service.dart';
 import '../../services/permission_service.dart';
@@ -29,6 +30,7 @@ class RideTrackingController extends ChangeNotifier {
     geofenceRadiusMeters =
         initialGeofenceRadiusMeters?.clamp(10, 250).toDouble() ??
         LocalRidePreferences.defaultBubbleRadiusMeters;
+    selectedMotorModelId = LocalRidePreferences.instance.motorModelId;
   }
 
   final LocationService _locationService;
@@ -50,6 +52,9 @@ class RideTrackingController extends ChangeNotifier {
   PlannedRoute? plannedRoute;
   List<MapboxPlace> placeSuggestions = const [];
   RouteVehicle selectedVehicle = RouteVehicle.car;
+  String? selectedMotorModelId;
+  ScooterModel? _selectedMotorModelOverride;
+  bool recordForLeaderboard = false;
   RoutePointModel? currentLocation;
   double geofenceRadiusMeters = 35;
   bool isOfflineMode = false;
@@ -69,6 +74,9 @@ class RideTrackingController extends ChangeNotifier {
   int get durationSeconds => _stopwatch.elapsed.inSeconds;
   double get averageSpeedMetersPerSecond =>
       durationSeconds <= 0 ? 0 : distanceMeters / durationSeconds;
+  ScooterModel? get selectedMotorModel =>
+      _selectedMotorModelOverride ??
+      ScooterCatalog.findById(selectedMotorModelId);
 
   Future<bool> start({RideStartMode mode = RideStartMode.exitBubble}) =>
       _start(offline: false, mode: mode);
@@ -90,6 +98,9 @@ class RideTrackingController extends ChangeNotifier {
         : null;
 
     isOfflineMode = offline;
+    if (offline) {
+      recordForLeaderboard = false;
+    }
     _resetRide();
     status = mode == RideStartMode.immediate
         ? RideTrackingStatus.tracking
@@ -149,10 +160,48 @@ class RideTrackingController extends ChangeNotifier {
       return;
     }
     selectedVehicle = vehicle;
+    if (vehicle != RouteVehicle.motorcycle) {
+      recordForLeaderboard = false;
+    }
     unawaited(LocalRidePreferences.instance.saveVehicleName(vehicle.name));
     plannedRoute = null;
     if (finishLine != null && navigationOrigin != null) {
       _planRoute();
+    }
+    notifyListeners();
+  }
+
+  void selectMotorModel(ScooterModel model) {
+    if (selectedMotorModelId == model.id) {
+      return;
+    }
+    selectedMotorModelId = model.id;
+    _selectedMotorModelOverride = model;
+    selectedVehicle = RouteVehicle.motorcycle;
+    unawaited(LocalRidePreferences.instance.saveMotorModelId(model.id));
+    unawaited(
+      LocalRidePreferences.instance.saveVehicleName(selectedVehicle.name),
+    );
+    notifyListeners();
+  }
+
+  void setRecordForLeaderboard(bool value) {
+    if (recordForLeaderboard == value) {
+      return;
+    }
+    recordForLeaderboard = value;
+    if (value) {
+      selectedVehicle = RouteVehicle.motorcycle;
+      if (selectedMotorModelId == null || selectedMotorModelId!.isEmpty) {
+        selectedMotorModelId = ScooterCatalog.defaultModel.id;
+        _selectedMotorModelOverride = ScooterCatalog.defaultModel;
+      }
+      unawaited(
+        LocalRidePreferences.instance.saveVehicleName(selectedVehicle.name),
+      );
+      unawaited(
+        LocalRidePreferences.instance.saveMotorModelId(selectedMotorModelId!),
+      );
     }
     notifyListeners();
   }
@@ -330,8 +379,16 @@ class RideTrackingController extends ChangeNotifier {
       averageSpeedMetersPerSecond: averageSpeedMetersPerSecond,
       maxSpeedMetersPerSecond: maxSpeedMetersPerSecond,
       routePoints: List.unmodifiable(_routePoints),
+      vehicleName: selectedVehicle.name,
+      motorModelId: selectedVehicle == RouteVehicle.motorcycle
+          ? selectedMotorModelId
+          : null,
+      recordForLeaderboard: recordForLeaderboard,
     );
   }
+
+  @visibleForTesting
+  void handlePositionForTest(Position position) => _handlePosition(position);
 
   @override
   void dispose() {
@@ -378,7 +435,22 @@ class RideTrackingController extends ChangeNotifier {
     }
 
     startLine ??= point;
-    final previous = _lastDistancePoint;
+    _recordTrackingPoint(point);
+    if (finishLine != null) {
+      _checkFinishLine(point);
+      if (isOfflineMode) {
+        _setOfflineRoute();
+      } else if (plannedRoute == null &&
+          !isPlanningRoute &&
+          _routePoints.length == 1) {
+        unawaited(_fetchPlannedRoute());
+      }
+    }
+    notifyListeners();
+  }
+
+  void _recordTrackingPoint(RoutePointModel point, {RoutePointModel? from}) {
+    final previous = from ?? _lastDistancePoint;
     if (previous != null) {
       final segment = DistanceUtils.haversineMeters(
         fromLat: previous.latitude,
@@ -404,19 +476,15 @@ class RideTrackingController extends ChangeNotifier {
       }
     }
 
-    _routePoints.add(point);
+    _appendRoutePoint(point);
     _lastDistancePoint = point;
-    if (finishLine != null) {
-      _checkFinishLine(point);
-      if (isOfflineMode) {
-        _setOfflineRoute();
-      } else if (plannedRoute == null &&
-          !isPlanningRoute &&
-          _routePoints.length == 1) {
-        unawaited(_fetchPlannedRoute());
-      }
+  }
+
+  void _appendRoutePoint(RoutePointModel point) {
+    if (_routePoints.isNotEmpty && _isSameLocation(_routePoints.last, point)) {
+      return;
     }
-    notifyListeners();
+    _routePoints.add(point);
   }
 
   void _handleArmedPosition(RoutePointModel point) {
@@ -445,8 +513,8 @@ class RideTrackingController extends ChangeNotifier {
 
     status = RideTrackingStatus.tracking;
     _stopwatch.start();
-    _routePoints.add(point);
-    _lastDistancePoint = point;
+    _appendRoutePoint(start);
+    _recordTrackingPoint(point, from: start);
     routeMessage = finishLine == null
         ? 'Ride started.'
         : 'Ride started. Head to the finish bubble.';
@@ -560,7 +628,7 @@ class RideTrackingController extends ChangeNotifier {
     if (!position.latitude.isFinite || !position.longitude.isFinite) {
       return false;
     }
-    return position.accuracy <= 50;
+    return position.accuracy <= 100;
   }
 
   RoutePointModel _positionToPoint(Position position) {
@@ -586,5 +654,10 @@ class RideTrackingController extends ChangeNotifier {
       return false;
     }
     return true;
+  }
+
+  bool _isSameLocation(RoutePointModel a, RoutePointModel b) {
+    return (a.latitude - b.latitude).abs() < 0.0000001 &&
+        (a.longitude - b.longitude).abs() < 0.0000001;
   }
 }

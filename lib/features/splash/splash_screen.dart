@@ -1,8 +1,11 @@
 import 'dart:math' as math;
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../services/auth_service.dart';
 import '../../shared/widgets/rydar_logo.dart';
 import '../home/home_screen.dart';
 
@@ -20,6 +23,7 @@ class _SplashScreenState extends State<SplashScreen>
   final PageController _pageController = PageController();
   late final AnimationController _motionController;
   int _pageIndex = 0;
+  bool _isSigningIn = false;
 
   @override
   void initState() {
@@ -63,8 +67,9 @@ class _SplashScreenState extends State<SplashScreen>
               pageIndex: _pageIndex,
               motion: _motionController,
               onBack: _previousPage,
-              onContinue: _enterGuestMode,
-              onUnavailable: _showAccountsComingSoon,
+              onContinue: _signInWithGoogle,
+              onGuestContinue: _enterGuestMode,
+              isSigningIn: _isSigningIn,
             ),
           ],
         ),
@@ -94,12 +99,45 @@ class _SplashScreenState extends State<SplashScreen>
     Navigator.of(context).pushReplacementNamed(HomeScreen.routeName);
   }
 
-  void _showAccountsComingSoon() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Accounts are coming soon. Continue as Guest for now.'),
-      ),
-    );
+  Future<void> _signInWithGoogle() async {
+    if (_isSigningIn) {
+      return;
+    }
+    setState(() => _isSigningIn = true);
+    try {
+      await AuthService.instance.signInWithGoogle();
+      if (!mounted) {
+        return;
+      }
+      Navigator.of(context).pushReplacementNamed(HomeScreen.routeName);
+    } on GoogleSignInException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      if (error.code != GoogleSignInExceptionCode.canceled) {
+        _showSignInMessage(error.description ?? 'Google sign-in failed.');
+      }
+    } on FirebaseAuthException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      _showSignInMessage(error.message ?? 'Firebase sign-in failed.');
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      _showSignInMessage('Could not sign in with Google. Try again.');
+    } finally {
+      if (mounted) {
+        setState(() => _isSigningIn = false);
+      }
+    }
+  }
+
+  void _showSignInMessage(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 }
 
@@ -292,32 +330,27 @@ class _TrackingPage extends StatelessWidget {
   }
 }
 
-class _ReadyPage extends StatefulWidget {
+class _ReadyPage extends StatelessWidget {
   const _ReadyPage({
     required this.pageIndex,
     required this.motion,
     required this.onBack,
     required this.onContinue,
-    required this.onUnavailable,
+    required this.onGuestContinue,
+    required this.isSigningIn,
   });
 
   final int pageIndex;
   final Animation<double> motion;
   final VoidCallback onBack;
   final VoidCallback onContinue;
-  final VoidCallback onUnavailable;
-
-  @override
-  State<_ReadyPage> createState() => _ReadyPageState();
-}
-
-class _ReadyPageState extends State<_ReadyPage> {
-  bool _obscurePassword = true;
+  final VoidCallback onGuestContinue;
+  final bool isSigningIn;
 
   @override
   Widget build(BuildContext context) {
     return _PageReveal(
-      active: widget.pageIndex == 2,
+      active: pageIndex == 2,
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 28, 20, 24),
         child: ConstrainedBox(
@@ -333,7 +366,7 @@ class _ReadyPageState extends State<_ReadyPage> {
                 children: [
                   IconButton(
                     tooltip: 'Back',
-                    onPressed: widget.onBack,
+                    onPressed: onBack,
                     icon: const Icon(
                       Icons.arrow_back_rounded,
                       color: AppColors.mutedText,
@@ -341,11 +374,10 @@ class _ReadyPageState extends State<_ReadyPage> {
                   ),
                   const Spacer(),
                   AnimatedBuilder(
-                    animation: widget.motion,
+                    animation: motion,
                     builder: (context, child) {
                       final scale =
-                          1 +
-                          math.sin(widget.motion.value * math.pi * 2) * 0.02;
+                          1 + math.sin(motion.value * math.pi * 2) * 0.02;
                       return Transform.scale(scale: scale, child: child);
                     },
                     child: const RydarLogo(size: 42),
@@ -387,17 +419,13 @@ class _ReadyPageState extends State<_ReadyPage> {
               ),
               const SizedBox(height: 28),
               _LoginCard(
-                obscurePassword: _obscurePassword,
-                onTogglePassword: () {
-                  setState(() => _obscurePassword = !_obscurePassword);
-                },
-                onUnavailable: widget.onUnavailable,
-                onGoogleContinue: widget.onContinue,
+                onGoogleContinue: onContinue,
+                isSigningIn: isSigningIn,
               ),
               const SizedBox(height: 30),
               _TextOnboardingButton(
                 label: 'Continue as Guest',
-                onPressed: widget.onContinue,
+                onPressed: onGuestContinue,
               ),
               const SizedBox(height: 8),
               const Text(
@@ -406,7 +434,7 @@ class _ReadyPageState extends State<_ReadyPage> {
                 style: TextStyle(color: AppColors.mutedText, fontSize: 14),
               ),
               const SizedBox(height: 28),
-              _ProgressDots(activeIndex: widget.pageIndex),
+              _ProgressDots(activeIndex: pageIndex),
             ],
           ),
         ),
@@ -416,17 +444,10 @@ class _ReadyPageState extends State<_ReadyPage> {
 }
 
 class _LoginCard extends StatelessWidget {
-  const _LoginCard({
-    required this.obscurePassword,
-    required this.onTogglePassword,
-    required this.onUnavailable,
-    required this.onGoogleContinue,
-  });
+  const _LoginCard({required this.onGoogleContinue, required this.isSigningIn});
 
-  final bool obscurePassword;
-  final VoidCallback onTogglePassword;
-  final VoidCallback onUnavailable;
   final VoidCallback onGoogleContinue;
+  final bool isSigningIn;
 
   @override
   Widget build(BuildContext context) {
@@ -446,101 +467,69 @@ class _LoginCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          const _AuthField(
-            label: 'Email',
-            hintText: 'rider@example.com',
-            keyboardType: TextInputType.emailAddress,
-          ),
-          const SizedBox(height: 16),
-          _AuthField(
-            label: 'Password',
-            hintText: 'Password',
-            obscureText: obscurePassword,
-            suffixIcon: IconButton(
-              tooltip: obscurePassword ? 'Show password' : 'Hide password',
-              onPressed: onTogglePassword,
-              icon: Icon(
-                obscurePassword
-                    ? Icons.visibility_rounded
-                    : Icons.visibility_off_rounded,
-                color: AppColors.mutedText,
+          Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.28),
+                  blurRadius: 14,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            alignment: Alignment.center,
+            child: const Text(
+              'G',
+              style: TextStyle(
+                color: Color(0xFF1A73E8),
+                fontSize: 32,
+                fontWeight: FontWeight.w900,
               ),
             ),
           ),
-          const SizedBox(height: 22),
-          _PrimaryOnboardingButton(
-            label: 'Log In',
-            icon: Icons.arrow_forward_rounded,
-            onPressed: onUnavailable,
+          const SizedBox(height: 16),
+          const Text(
+            'Sign in with Google',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: AppColors.text,
+              fontSize: 24,
+              height: 1.12,
+              fontWeight: FontWeight.w900,
+            ),
           ),
-          const SizedBox(height: 12),
-          _GoogleOnboardingButton(onPressed: onGoogleContinue),
-          const SizedBox(height: 12),
-          _OutlineOnboardingButton(
-            label: 'Create Account',
-            onPressed: onUnavailable,
+          const SizedBox(height: 8),
+          const Text(
+            'Use your Google account to keep rides, routes, and ride cards together.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: AppColors.mutedText,
+              fontSize: 15,
+              height: 1.45,
+            ),
+          ),
+          const SizedBox(height: 22),
+          _GoogleOnboardingButton(
+            onPressed: isSigningIn ? null : onGoogleContinue,
+            isBusy: isSigningIn,
+          ),
+          const SizedBox(height: 14),
+          const Text(
+            'No email or password required.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Color(0xFFC8C6C5),
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.3,
+            ),
           ),
         ],
       ),
-    );
-  }
-}
-
-class _AuthField extends StatelessWidget {
-  const _AuthField({
-    required this.label,
-    required this.hintText,
-    this.keyboardType,
-    this.obscureText = false,
-    this.suffixIcon,
-  });
-
-  final String label;
-  final String hintText;
-  final TextInputType? keyboardType;
-  final bool obscureText;
-  final Widget? suffixIcon;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label.toUpperCase(),
-          style: const TextStyle(
-            color: Color(0xFFC8C6C5),
-            fontSize: 12,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1.1,
-          ),
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          keyboardType: keyboardType,
-          obscureText: obscureText,
-          style: const TextStyle(color: AppColors.text, fontSize: 16),
-          decoration: InputDecoration(
-            hintText: hintText,
-            hintStyle: const TextStyle(color: Color(0xFF5A5A5A)),
-            filled: true,
-            fillColor: const Color(0xFF080808),
-            suffixIcon: suffixIcon,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 14,
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: Color(0xFF292A2A)),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: AppColors.orange, width: 1.4),
-            ),
-          ),
-        ),
-      ],
     );
   }
 }
@@ -739,12 +728,10 @@ class _PrimaryOnboardingButton extends StatelessWidget {
   const _PrimaryOnboardingButton({
     required this.label,
     required this.onPressed,
-    this.icon,
   });
 
   final String label;
   final VoidCallback onPressed;
-  final IconData? icon;
 
   @override
   Widget build(BuildContext context) {
@@ -768,55 +755,18 @@ class _PrimaryOnboardingButton extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(label.toUpperCase()),
-            if (icon != null) ...[
-              const SizedBox(width: 8),
-              Icon(icon, size: 20),
-            ],
-          ],
+          children: [Text(label.toUpperCase())],
         ),
-      ),
-    );
-  }
-}
-
-class _OutlineOnboardingButton extends StatelessWidget {
-  const _OutlineOnboardingButton({
-    required this.label,
-    required this.onPressed,
-  });
-
-  final String label;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      height: 54,
-      child: OutlinedButton(
-        onPressed: onPressed,
-        style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.text,
-          side: const BorderSide(color: AppColors.orange),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          textStyle: const TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 1.1,
-          ),
-        ),
-        child: Text(label.toUpperCase()),
       ),
     );
   }
 }
 
 class _GoogleOnboardingButton extends StatelessWidget {
-  const _GoogleOnboardingButton({required this.onPressed});
+  const _GoogleOnboardingButton({required this.onPressed, this.isBusy = false});
 
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
+  final bool isBusy;
 
   @override
   Widget build(BuildContext context) {
@@ -837,31 +787,40 @@ class _GoogleOnboardingButton extends StatelessWidget {
             letterSpacing: 0.8,
           ),
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 22,
-              height: 22,
-              alignment: Alignment.center,
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-              ),
-              child: const Text(
-                'G',
-                style: TextStyle(
-                  color: Color(0xFF1A73E8),
-                  fontSize: 14,
-                  fontWeight: FontWeight.w900,
+        child: isBusy
+            ? const SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.4,
+                  color: AppColors.orange,
                 ),
+              )
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 22,
+                    height: 22,
+                    alignment: Alignment.center,
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Text(
+                      'G',
+                      style: TextStyle(
+                        color: Color(0xFF1A73E8),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  const Flexible(child: Text('CONTINUE WITH GOOGLE')),
+                ],
               ),
-            ),
-            const SizedBox(width: 10),
-            const Flexible(child: Text('CONTINUE WITH GOOGLE')),
-          ],
-        ),
       ),
     );
   }

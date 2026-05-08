@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -9,9 +8,10 @@ import '../../core/utils/distance_utils.dart';
 import '../../core/utils/duration_utils.dart';
 import '../../core/utils/speed_utils.dart';
 import '../../data/local/local_ride_preferences.dart';
-import '../../data/models/route_point_model.dart';
+import '../../data/models/scooter_model.dart';
 import '../../services/mapbox_service.dart';
 import '../../shared/widgets/map_route_view.dart';
+import '../../shared/widgets/motorcycle_category_picker.dart';
 import '../ride_summary/ride_summary_screen.dart';
 import 'ride_tracking_controller.dart';
 
@@ -31,8 +31,6 @@ RydarMapStyle _mapStyleFromName(String name) {
   );
 }
 
-enum RideDisplayMode { simple, sport }
-
 class RideTrackingScreen extends StatefulWidget {
   const RideTrackingScreen({super.key});
 
@@ -44,7 +42,6 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
   late final RideTrackingController _controller;
   final MapRouteController _mapController = MapRouteController();
   RydarMapStyle _mapStyle = RydarMapStyle.dark;
-  RideDisplayMode _displayMode = RideDisplayMode.simple;
   bool _isPickingFinishLine = false;
 
   @override
@@ -79,41 +76,29 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
     final isPaused = _controller.status == RideTrackingStatus.paused;
     final isFinishing = _controller.status == RideTrackingStatus.finishing;
     final bottomPad = MediaQuery.paddingOf(context).bottom;
-    final sportModeAvailable =
-        _controller.selectedVehicle != RouteVehicle.walking;
-    final effectiveDisplayMode = sportModeAvailable
-        ? _displayMode
-        : RideDisplayMode.simple;
-    final isSportMode = effectiveDisplayMode == RideDisplayMode.sport;
 
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         children: [
           // ── Full-screen map ──────────────────────────────────────────
-          if (isSportMode)
-            Positioned.fill(child: _SportModeView(controller: _controller))
-          else ...[
-            Positioned.fill(
-              child: MapRouteView(
-                controller: _mapController,
-                points: _controller.routePoints,
-                plannedRoutePoints:
-                    _controller.plannedRoute?.points ?? const [],
-                finishLine: _controller.finishLine,
-                startLine: _controller.startLine,
-                bubbleRadiusMeters: _controller.geofenceRadiusMeters,
-                currentLocation: _controller.currentLocation,
-                locationFocusRequest: _controller.locationFocusRequest,
-                followLatestPoint: true,
-                borderRadius: 0,
-                mapStyle: _mapStyle,
-              ),
+          Positioned.fill(
+            child: MapRouteView(
+              controller: _mapController,
+              points: _controller.routePoints,
+              plannedRoutePoints: _controller.plannedRoute?.points ?? const [],
+              finishLine: _controller.finishLine,
+              startLine: _controller.startLine,
+              bubbleRadiusMeters: _controller.geofenceRadiusMeters,
+              currentLocation: _controller.currentLocation,
+              locationFocusRequest: _controller.locationFocusRequest,
+              followLatestPoint: true,
+              borderRadius: 0,
+              mapStyle: _mapStyle,
             ),
-            const Positioned.fill(child: _MapShade()),
-            if (_isPickingFinishLine)
-              const Positioned.fill(child: _CenterPin()),
-          ],
+          ),
+          const Positioned.fill(child: _MapShade()),
+          if (_isPickingFinishLine) const Positioned.fill(child: _CenterPin()),
 
           // ── Top bar ─────────────────────────────────────────────────
           Positioned(
@@ -200,12 +185,6 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
                       ),
                       const SizedBox(height: 8),
                     ],
-                    _RideModeToggle(
-                      current: effectiveDisplayMode,
-                      sportAvailable: sportModeAvailable,
-                      onChanged: _setDisplayMode,
-                    ),
-                    const SizedBox(height: 8),
                     _RoutePlannerBar(
                       controller: _controller,
                       onOpen: _showRouteSheet,
@@ -321,16 +300,29 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (_) => _StartOptionsSheet(
-        selectedVehicle: _controller.selectedVehicle,
-        onStartExitBubble: () =>
-            _startFromSheet(offline: false, mode: RideStartMode.exitBubble),
-        onStartImmediate: () =>
-            _startFromSheet(offline: false, mode: RideStartMode.immediate),
-        onStartOfflineExitBubble: () =>
-            _startFromSheet(offline: true, mode: RideStartMode.exitBubble),
-        onStartOfflineImmediate: () =>
-            _startFromSheet(offline: true, mode: RideStartMode.immediate),
+      builder: (_) => StatefulBuilder(
+        builder: (context, setSheetState) => _StartOptionsSheet(
+          selectedVehicle: _controller.selectedVehicle,
+          recordForLeaderboard: _controller.recordForLeaderboard,
+          selectedMotorModel: _controller.selectedMotorModel,
+          selectedMotorModelId: _controller.selectedMotorModelId,
+          onRecordForLeaderboardChanged: (value) {
+            _controller.setRecordForLeaderboard(value);
+            setSheetState(() {});
+          },
+          onMotorModelChanged: (model) {
+            _controller.selectMotorModel(model);
+            setSheetState(() {});
+          },
+          onStartExitBubble: () =>
+              _startFromSheet(offline: false, mode: RideStartMode.exitBubble),
+          onStartImmediate: () =>
+              _startFromSheet(offline: false, mode: RideStartMode.immediate),
+          onStartOfflineExitBubble: () =>
+              _startFromSheet(offline: true, mode: RideStartMode.exitBubble),
+          onStartOfflineImmediate: () =>
+              _startFromSheet(offline: true, mode: RideStartMode.immediate),
+        ),
       ),
     );
   }
@@ -347,14 +339,6 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
     }
   }
 
-  void _setDisplayMode(RideDisplayMode mode) {
-    if (mode == RideDisplayMode.sport &&
-        _controller.selectedVehicle == RouteVehicle.walking) {
-      return;
-    }
-    setState(() => _displayMode = mode);
-  }
-
   void _setMapStyle(RydarMapStyle style) {
     setState(() => _mapStyle = style);
     unawaited(LocalRidePreferences.instance.saveMapStyleName(style.name));
@@ -362,10 +346,7 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
 
   Future<void> _startFinishLinePicker() async {
     final currentFinishLine = _controller.finishLine;
-    setState(() {
-      _displayMode = RideDisplayMode.simple;
-      _isPickingFinishLine = true;
-    });
+    setState(() => _isPickingFinishLine = true);
     if (currentFinishLine != null) {
       await _mapController.focusOnPoint(currentFinishLine, zoom: 17);
     }

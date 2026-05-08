@@ -163,6 +163,60 @@ class MapboxService {
       );
     }).toList();
   }
+
+  static Future<MapboxPlace?> reverseGeocodePlace(RoutePointModel point) async {
+    if (!AppConfig.hasMapboxToken) {
+      return null;
+    }
+
+    final uri = Uri.https(
+      'api.mapbox.com',
+      '/geocoding/v5/mapbox.places/'
+          '${point.longitude},${point.latitude}.json',
+      {
+        'access_token': AppConfig.mapboxAccessToken,
+        'types': 'place,locality,district,region',
+        'limit': '1',
+      },
+    );
+
+    final response = await http.get(uri);
+    if (response.statusCode != 200) {
+      return null;
+    }
+
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    final features = body['features'] as List<dynamic>? ?? const [];
+    if (features.isEmpty) {
+      return null;
+    }
+
+    final data = features.first as Map<String, dynamic>;
+    final center =
+        data['center'] as List<dynamic>? ?? [point.longitude, point.latitude];
+    final placeName = _shortPlaceName(
+      (data['place_name'] as String?) ?? (data['text'] as String?) ?? 'Unknown',
+    );
+    return MapboxPlace(
+      id: (data['id'] as String?) ?? placeName,
+      name: placeName,
+      placeName: placeName,
+      longitude: (center[0] as num).toDouble(),
+      latitude: (center[1] as num).toDouble(),
+    );
+  }
+
+  static String _shortPlaceName(String placeName) {
+    final parts = placeName
+        .split(',')
+        .map((part) => part.trim())
+        .where((part) => part.isNotEmpty && part.toLowerCase() != 'philippines')
+        .toList();
+    if (parts.length >= 2) {
+      return '${parts[0]}, ${parts[1]}';
+    }
+    return parts.isEmpty ? 'Unknown Location' : parts.first;
+  }
 }
 
 class MapboxDirectionsException implements Exception {

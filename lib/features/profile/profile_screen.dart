@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -6,6 +7,7 @@ import '../../core/utils/distance_utils.dart';
 import '../../core/utils/speed_utils.dart';
 import '../../data/local/local_ride_storage.dart';
 import '../../data/models/ride_model.dart';
+import '../../services/auth_service.dart';
 import '../../shared/widgets/rydar_logo.dart';
 import '../../shared/widgets/rydar_screen_chrome.dart';
 import '../../shared/widgets/rydar_stitch_widgets.dart';
@@ -38,8 +40,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       0,
       (sum, ride) => sum + ride.durationSeconds,
     );
-    final averageSpeed =
-        totalDuration == 0 ? 0.0 : totalDistance / totalDuration;
+    final averageSpeed = totalDuration == 0
+        ? 0.0
+        : totalDistance / totalDuration;
+    final user = AuthService.instance.currentUser;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -79,7 +83,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: ListView(
                       padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
                       children: [
-                        const _ProfileHero(),
+                        _ProfileHero(user: user),
                         const SizedBox(height: 24),
                         RydarMetricCard(
                           label: 'Total distance',
@@ -125,9 +129,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         const SizedBox(height: 24),
                         Center(
                           child: TextButton(
-                            onPressed: _showCreateAccountMessage,
+                            onPressed: user == null ? _goToLogin : _logout,
                             child: Text(
-                              'CREATE AN ACCOUNT',
+                              user == null ? 'SIGN IN WITH GOOGLE' : 'LOG OUT',
                               style: TextStyle(
                                 color: AppColors.orange.withValues(alpha: 0.8),
                                 fontSize: 12,
@@ -146,8 +150,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ],
       ),
-      bottomNavigationBar:
-          const RydarBottomNav(current: RydarNavItem.profile),
+      bottomNavigationBar: const RydarBottomNav(current: RydarNavItem.profile),
     );
   }
 
@@ -158,16 +161,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
     await SharePlus.instance.share(
       ShareParams(
-        text: 'Rydar Guest Rider\n'
+        text:
+            '${AuthService.instance.currentUser?.displayName ?? 'Rydar Rider'}\n'
             'Rides completed: ${_rides.length}\n'
             'Total distance: ${DistanceUtils.formatMeters(totalDistance)}',
       ),
     );
   }
 
-  void _showCreateAccountMessage() {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('Accounts are coming soon.')));
+  Future<void> _logout() async {
+    await AuthService.instance.signOut();
+    if (!mounted) {
+      return;
+    }
+    Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+  }
+
+  void _goToLogin() {
+    Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
   }
 
   String _distanceNumber(double meters) {
@@ -187,10 +198,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
 //  Profile hero — avatar + name
 // ═══════════════════════════════════════════════════════════════════════════
 class _ProfileHero extends StatelessWidget {
-  const _ProfileHero();
+  const _ProfileHero({required this.user});
+
+  final User? user;
 
   @override
   Widget build(BuildContext context) {
+    final photoUrl = user?.photoURL;
+    final displayName = user?.displayName ?? 'Guest Rider';
     return Column(
       children: [
         // Avatar with glow ring
@@ -223,24 +238,26 @@ class _ProfileHero extends StatelessWidget {
               color: AppColors.background,
             ),
             child: ClipOval(
-              child: ColorFiltered(
-                colorFilter: const ColorFilter.mode(
-                  Colors.grey,
-                  BlendMode.saturation,
-                ),
-                child: const Padding(
-                  padding: EdgeInsets.all(16),
-                  child: RydarLogo(size: 72),
-                ),
-              ),
+              child: photoUrl == null
+                  ? const ColorFiltered(
+                      colorFilter: ColorFilter.mode(
+                        Colors.grey,
+                        BlendMode.saturation,
+                      ),
+                      child: Padding(
+                        padding: EdgeInsets.all(16),
+                        child: RydarLogo(size: 72),
+                      ),
+                    )
+                  : Image.network(photoUrl, fit: BoxFit.cover),
             ),
           ),
         ),
         const SizedBox(height: 16),
-        const Text(
-          'Guest Rider',
+        Text(
+          displayName,
           textAlign: TextAlign.center,
-          style: TextStyle(
+          style: const TextStyle(
             color: AppColors.text,
             fontSize: 32,
             height: 1.1,
@@ -249,7 +266,7 @@ class _ProfileHero extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(
-          'Local tracking mode',
+          user == null ? 'Local tracking mode' : 'Google account connected',
           style: TextStyle(
             color: AppColors.text.withValues(alpha: 0.4),
             fontSize: 13,

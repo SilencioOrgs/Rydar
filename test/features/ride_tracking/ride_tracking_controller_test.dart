@@ -1,3 +1,4 @@
+import 'package:geolocator/geolocator.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rydar_app/data/models/route_point_model.dart';
 import 'package:rydar_app/features/ride_tracking/ride_tracking_controller.dart';
@@ -78,6 +79,73 @@ void main() {
       expect(ride.durationSeconds, 0);
       expect(ride.routePoints, isEmpty);
       expect(ride.hasMeaningfulDistance, isFalse);
+      expect(ride.recordForLeaderboard, isFalse);
+    });
+
+    test('leaderboard recording forces a motorcycle category', () {
+      final controller = RideTrackingController(
+        initialVehicle: RouteVehicle.car,
+      );
+      addTearDown(controller.dispose);
+
+      controller.setRecordForLeaderboard(true);
+      final ride = controller.buildRideSnapshot();
+
+      expect(controller.selectedVehicle, RouteVehicle.motorcycle);
+      expect(controller.selectedMotorModelId, isNotNull);
+      expect(ride.vehicleName, RouteVehicle.motorcycle.name);
+      expect(ride.motorModelId, controller.selectedMotorModelId);
+      expect(ride.recordForLeaderboard, isTrue);
+    });
+
+    test('keeps start point when exit bubble begins tracking', () {
+      final controller = RideTrackingController(
+        initialGeofenceRadiusMeters: 20,
+      );
+      addTearDown(controller.dispose);
+      controller.status = RideTrackingStatus.armed;
+
+      controller.handlePositionForTest(
+        _position(
+          latitude: 14.6000,
+          longitude: 121.0000,
+          timestamp: DateTime(2026, 1, 1, 8),
+          accuracy: 80,
+        ),
+      );
+      controller.handlePositionForTest(
+        _position(
+          latitude: 14.6005,
+          longitude: 121.0000,
+          timestamp: DateTime(2026, 1, 1, 8, 0, 10),
+          accuracy: 80,
+        ),
+      );
+
+      expect(controller.status, RideTrackingStatus.tracking);
+      expect(controller.routePoints, hasLength(2));
+      expect(controller.distanceMeters, greaterThan(10));
+      expect(controller.buildRideSnapshot().hasMeaningfulDistance, isTrue);
     });
   });
+}
+
+Position _position({
+  required double latitude,
+  required double longitude,
+  required DateTime timestamp,
+  double accuracy = 10,
+}) {
+  return Position(
+    latitude: latitude,
+    longitude: longitude,
+    timestamp: timestamp,
+    accuracy: accuracy,
+    altitude: 0,
+    altitudeAccuracy: 0,
+    heading: 0,
+    headingAccuracy: 0,
+    speed: 0,
+    speedAccuracy: 0,
+  );
 }

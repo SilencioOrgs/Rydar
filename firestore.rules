@@ -1,0 +1,46 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function owns(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    match /users/{userId} {
+      allow read, write: if owns(userId);
+
+      match /rides/{rideId} {
+        allow read, write: if owns(userId);
+      }
+    }
+
+    match /motorcycleCategories/{categoryId} {
+      allow read: if true;
+      allow create: if signedIn()
+        && request.resource.data.id == categoryId
+        && request.resource.data.createdBy == request.auth.uid;
+      allow update: if signedIn()
+        && resource.data.createdBy == request.auth.uid
+        && request.resource.data.id == categoryId
+        && request.resource.data.createdBy == resource.data.createdBy;
+      allow delete: if false;
+    }
+
+    match /leaderboards/{leaderboardId} {
+      allow read: if signedIn();
+      allow create, update: if signedIn();
+      allow delete: if false;
+
+      match /entries/{userId} {
+        allow read: if signedIn();
+        allow create, update: if owns(userId)
+          && request.resource.data.userId == request.auth.uid;
+        allow delete: if owns(userId);
+      }
+    }
+  }
+}

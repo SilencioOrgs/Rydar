@@ -11,6 +11,9 @@ class RideModel {
     required this.routePoints,
     this.photoPath,
     this.rideCardImagePath,
+    this.vehicleName,
+    this.motorModelId,
+    this.recordForLeaderboard = false,
   });
 
   final String id;
@@ -22,11 +25,20 @@ class RideModel {
   final List<RoutePointModel> routePoints;
   final String? photoPath;
   final String? rideCardImagePath;
+  final String? vehicleName;
+  final String? motorModelId;
+  final bool recordForLeaderboard;
 
   bool get hasMeaningfulDistance =>
       distanceMeters >= 10 && routePoints.length >= 2;
 
-  RideModel copyWith({String? photoPath, String? rideCardImagePath}) {
+  RideModel copyWith({
+    String? photoPath,
+    String? rideCardImagePath,
+    String? vehicleName,
+    String? motorModelId,
+    bool? recordForLeaderboard,
+  }) {
     return RideModel(
       id: id,
       dateTime: dateTime,
@@ -37,6 +49,9 @@ class RideModel {
       routePoints: routePoints,
       photoPath: photoPath ?? this.photoPath,
       rideCardImagePath: rideCardImagePath ?? this.rideCardImagePath,
+      vehicleName: vehicleName ?? this.vehicleName,
+      motorModelId: motorModelId ?? this.motorModelId,
+      recordForLeaderboard: recordForLeaderboard ?? this.recordForLeaderboard,
     );
   }
 
@@ -51,6 +66,9 @@ class RideModel {
       'routePoints': routePoints.map((point) => point.toMap()).toList(),
       'photoPath': photoPath,
       'rideCardImagePath': rideCardImagePath,
+      'vehicleName': vehicleName,
+      'motorModelId': motorModelId,
+      'recordForLeaderboard': recordForLeaderboard,
     };
   }
 
@@ -71,6 +89,9 @@ class RideModel {
       routePoints: points,
       photoPath: map['photoPath'] as String?,
       rideCardImagePath: map['rideCardImagePath'] as String?,
+      vehicleName: map['vehicleName'] as String?,
+      motorModelId: map['motorModelId'] as String?,
+      recordForLeaderboard: (map['recordForLeaderboard'] as bool?) ?? false,
     );
   }
 }

@@ -39,15 +39,18 @@ void main() {
         preferences.bubbleRadiusMeters,
         LocalRidePreferences.defaultBubbleRadiusMeters,
       );
+      expect(preferences.motorModelId, isNull);
     });
 
-    test('saves vehicle and map style names', () async {
+    test('saves vehicle, motor, and map style names', () async {
       final preferences = LocalRidePreferences.instance;
 
       await preferences.saveVehicleName('bicycle');
+      await preferences.saveMotorModelId('honda-click-160');
       await preferences.saveMapStyleName('satellite');
 
       expect(preferences.vehicleName, 'bicycle');
+      expect(preferences.motorModelId, 'honda-click-160');
       expect(preferences.mapStyleName, 'satellite');
     });
 

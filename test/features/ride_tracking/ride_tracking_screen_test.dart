@@ -81,24 +81,31 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Start car ride'), findsOneWidget);
+      expect(find.text('Record in leaderboards'), findsOneWidget);
       expect(find.text('Exit bubble'), findsOneWidget);
       expect(find.text('Start now'), findsOneWidget);
       expect(find.text('OFFLINE BUBBLE'), findsOneWidget);
       expect(find.text('OFFLINE NOW'), findsOneWidget);
     });
 
-    testWidgets('sports mode replaces map with digital speed view', (
+    testWidgets('leaderboard recording shows motor dropdowns and keeps map', (
       tester,
     ) async {
       await pumpRideTrackingScreen(tester);
 
       expect(find.byType(MapRouteView), findsOneWidget);
 
-      await tester.tap(find.text('SPORTS'));
+      await tester.tap(find.byIcon(Icons.play_arrow_rounded));
       await tester.pumpAndSettle();
 
-      expect(find.byType(MapRouteView), findsNothing);
-      expect(find.text('KM/H  MAX 200'), findsOneWidget);
+      await tester.tap(find.byType(SwitchListTile).first);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(MapRouteView), findsOneWidget);
+      expect(find.text('Motor brand'), findsOneWidget);
+      expect(find.text('Motor model'), findsOneWidget);
+      expect(find.text('Honda'), findsOneWidget);
+      expect(find.text('BeAT (110cc)'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   });

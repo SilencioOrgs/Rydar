@@ -9,6 +9,8 @@ import '../../core/utils/speed_utils.dart';
 import '../../data/local/local_ride_storage.dart';
 import '../../data/models/ride_model.dart';
 import '../../data/models/route_point_model.dart';
+import '../../services/auth_service.dart';
+import '../../services/cloud_ride_service.dart';
 import '../home/home_screen.dart';
 import '../ride_card/ride_card_screen.dart';
 
@@ -84,8 +86,24 @@ class _RideSummaryScreenState extends State<RideSummaryScreen> {
       return;
     }
     await LocalRideStorage.instance.saveRide(_ride);
+    var message = 'Ride saved locally.';
+    if (AuthService.instance.currentUser != null ||
+        _ride.recordForLeaderboard) {
+      try {
+        final scope = await CloudRideService.instance
+            .saveRideAndSubmitBestSpeed(_ride);
+        if (scope != null) {
+          message =
+              'Ride saved online. Weekly top speed submitted for ${scope.placeName}.';
+        }
+      } on CloudRideException catch (error) {
+        message = 'Ride saved locally. ${error.message}';
+      } catch (_) {
+        message = 'Ride saved locally. Could not upload online right now.';
+      }
+    }
     setState(() => _saved = true);
-    _showMessage('Ride saved locally.');
+    _showMessage(message);
   }
 
   Future<void> _openRideCard() async {

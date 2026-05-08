@@ -1,0 +1,29 @@
+{
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "rydarapp-61b0c",
+          "appId": "1:922153097833:android:d1bf519095b180560320f8",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "rydarapp-61b0c",
+          "configurations": {
+            "android": "1:922153097833:android:d1bf519095b180560320f8",
+            "ios": "1:922153097833:ios:159a31203ab20af00320f8",
+            "macos": "1:922153097833:ios:159a31203ab20af00320f8",
+            "web": "1:922153097833:web:486f3f40472f58e20320f8",
+            "windows": "1:922153097833:web:597085cdeba476ec0320f8"
+          }
+        }
+      }
+    }
+  }
+}

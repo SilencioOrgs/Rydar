@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "922153097833",
+    "project_id": "rydarapp-61b0c",
+    "storage_bucket": "rydarapp-61b0c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:922153097833:android:d1bf519095b180560320f8",
+        "android_client_info": {
+          "package_name": "com.example.rydar_app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "922153097833-8337sp2df09d9t7ce7h04sr3u13vo8c3.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.rydar_app",
+            "certificate_hash": "e0c616109d939ad1b27637e91f703f9d120a11c5"
+          }
+        },
+        {
+          "client_id": "922153097833-uss1e1dcdqc4r74j5pa2t7li70uv1ai9.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC4UY5XyophQSY6oHHp36cDxiCeVLSP1fk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "922153097833-uss1e1dcdqc4r74j5pa2t7li70uv1ai9.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "922153097833-lge6l0qjj3g5n0eb5dep5cakcsb5iujq.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.rydarApp"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
